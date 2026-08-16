@@ -1,0 +1,62 @@
+version: "1.0"
+name: agent-eval-router-benchmark-suite
+purpose: "Routing and evaluation suite for LLM and agent workloads"
+
+# These are external benchmark sources. The repository stores metadata and adapters,
+# not gated/private benchmark test answers.
+sources:
+  - id: bfcl_v4
+    name: Berkeley Function Calling Leaderboard V4
+    url: https://gorilla.cs.berkeley.edu/leaderboard
+    repository: https://github.com/ShishirPatil/gorilla
+    capability: tool_calling
+    metrics: [accuracy, cost, latency]
+    notes: "Use the official evaluator/data release. Do not vendor the upstream dataset unless its license permits it."
+
+  - id: gaia
+    name: GAIA
+    url: https://huggingface.co/datasets/gaia-benchmark/GAIA
+    capability: general_agent
+    metrics: [task_success, level_success]
+    access: gated
+    notes: "Do not redistribute the gated validation/test set. Download through the official Hugging Face release."
+
+  - id: agentbench_fc
+    name: AgentBench FC
+    url: https://github.com/THUDM/AgentBench
+    capability: multi_environment_agent
+    metrics: [task_success]
+    notes: "Use the official containerized environments and evaluation code."
+
+  - id: tua_bench
+    name: TUA-Bench
+    url: https://github.com/facebookresearch/TUA-Bench
+    capability: terminal_use
+    metrics: [success_rate, pass_at_1, pass_at_5]
+    license: CC-BY-NC
+    notes: "Non-commercial license; keep external task assets out of a commercial distribution."
+
+  - id: swe_bench
+    name: SWE-bench
+    url: https://github.com/SWE-bench/SWE-bench
+    capability: software_engineering_agent
+    metrics: [resolved]
+    license: MIT
+    notes: "Use the official repository and task releases."
+
+local:
+  - id: routing_bench_v1
+    path: benchmarks/routing-bench-v1.jsonl
+    purpose: "Original, redistributable cases for routing smoke tests and regression CI"
+    categories: [reasoning, structured_output, tool_calling, rag, agent_planning, reliability]
+    cases: 30
+    license: "project-owned"
+
+routing_experiment:
+  baselines:
+    - single_model
+    - cheapest_model
+    - fastest_model
+  adaptive: adaptive_router
+  primary_objective: "maximize quality subject to latency, cost, and reliability constraints"
+  reported_metrics: [task_success, quality, p95_latency_ms, cost_per_task, reliability, failure_rate]
