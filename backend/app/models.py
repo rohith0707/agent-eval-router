@@ -10,11 +10,12 @@ class EvaluationRequest(BaseModel):
 
 
 class ModelCandidate(BaseModel):
+    provider: str
     model: str
-    quality: float
-    latency_ms: int
-    cost: float
-    reliability: float
+    quality: float = Field(ge=0, le=1)
+    latency_ms: int = Field(ge=0)
+    cost: float = Field(ge=0)
+    reliability: float = Field(ge=0, le=1)
 
 
 class RoutingDecision(BaseModel):
