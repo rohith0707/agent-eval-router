@@ -1,6 +1,7 @@
 "use client";
-
 import { useState } from "react";
+import Link from "next/link";
+import DashboardShell from "../components/DashboardShell";
 
 type Result = any;
 
@@ -16,39 +17,17 @@ export default function LiveEvaluation() {
       const response = await fetch("/api/live-evaluate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task }) });
       const text = await response.text();
       let data: any;
-      try { data = JSON.parse(text); } catch { throw new Error(`API returned non-JSON (${response.status}). ${text.slice(0, 160)}`); }
-      if (!response.ok) throw new Error(data.error || "Evaluation failed");
+      try { data = JSON.parse(text); } catch { throw new Error(`Evaluation API returned an invalid response (${response.status}).`); }
+      if (!response.ok) throw new Error(data.error || "Evaluation failed. Please try again.");
       setResult(data);
-    } catch (e) { setError(e instanceof Error ? e.message : "Evaluation failed"); }
+    } catch (e) { setError(e instanceof Error ? e.message : "Evaluation failed. Please try again."); }
     finally { setLoading(false); }
   }
 
-  return (
-    <main className="min-h-screen bg-[#09090b] px-5 py-10 text-zinc-100 md:px-10">
-      <div className="mx-auto max-w-6xl">
-        <div className="text-xs uppercase tracking-[0.28em] text-zinc-500">Live Evidence Mode</div>
-        <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-          <div><h1 className="text-4xl font-semibold tracking-tight">Agent Evaluation & Routing</h1><p className="mt-2 text-zinc-400">Real NVIDIA NIM inference → evaluation → routing → persisted evidence.</p></div>
-          <a href="/" className="rounded-lg border border-white/10 px-4 py-2 text-sm text-zinc-300">← Dashboard</a>
-        </div>
-
-        <section className="mt-8 rounded-2xl border border-white/10 bg-white/[.025] p-6">
-          <label className="text-xs font-medium tracking-widest text-zinc-500">TASK</label>
-          <textarea value={task} onChange={e => setTask(e.target.value)} rows={5} className="mt-3 w-full rounded-xl border border-white/10 bg-black/30 p-4 text-sm outline-none focus:border-white/30" />
-          <button onClick={run} disabled={loading || !task.trim()} className="mt-4 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-black disabled:opacity-50">{loading ? "Running real evaluation…" : "Run real evaluation"}</button>
-          {error && <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300">{error}</div>}
-        </section>
-
-        {result && <div className="mt-6 space-y-5">
-          {result.source !== "nvidia_nim" && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">Fallback evidence: NVIDIA was unavailable. This result is not presented as a real NVIDIA run.</div>}
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[["Selected model", result.decision.selectedModel], ["Quality", `${(result.metrics.quality * 100).toFixed(1)}%`], ["Latency", result.metrics.latencyMs ? `${result.metrics.latencyMs} ms` : "N/A"], ["Run ID", result.runId]].map(([k,v]) => <div key={k} className="rounded-xl border border-white/10 bg-white/[.025] p-5"><div className="text-xs text-zinc-500">{k}</div><div className="mt-2 break-all font-semibold">{v}</div></div>)}
-          </section>
-          <section className="rounded-2xl border border-white/10 bg-white/[.025] p-6"><h2 className="font-semibold">Routing decision</h2><p className="mt-2 text-sm leading-6 text-zinc-400">{result.decision.reason}</p></section>
-          <section className="rounded-2xl border border-white/10 bg-white/[.025] p-6"><h2 className="font-semibold">Model output</h2><pre className="mt-4 whitespace-pre-wrap text-sm leading-6 text-zinc-300">{result.candidates?.[0]?.output || "No output"}</pre></section>
-          <section className="rounded-2xl border border-white/10 bg-white/[.025] p-6"><h2 className="font-semibold">Execution trace</h2><div className="mt-4 space-y-3">{result.trace?.map((t:any) => <div key={t.step} className="border-t border-white/5 pt-3"><div className="text-sm font-medium">{t.status === "complete" ? "✓" : "•"} {t.step}</div><div className="mt-1 text-xs text-zinc-500">{t.detail}</div></div>)}</div></section>
-        </div>}
-      </div>
-    </main>
-  );
+  return <DashboardShell title="Live Evaluation" eyebrow="Evidence" action={<Link href="/" className="button secondary">Back to dashboard</Link>}>
+    <section className="heroCard"><div><p className="eyebrow">LIVE EVIDENCE MODE</p><h2 className="heroTitle">Evaluate a real task through the model cascade.</h2><p className="heroDesc">The router selects internal candidates in priority order, falls through silently on provider/model failure, grades the successful response, and persists the evidence when Neon is available.</p></div></section>
+    <section className="card" style={{marginTop:18}}><label className="fieldLabel">Task</label><textarea value={task} onChange={e=>setTask(e.target.value)} rows={5} className="textarea"/><div className="formBar"><span className="helper">No model or provider selection is required.</span><button onClick={run} disabled={loading||!task.trim()} className="button">{loading?"Running evaluation…":"Run evaluation"}</button></div>{error&&<div className="notice errorNotice">{error}</div>}</section>
+    {result&&<div className="resultStack"><section className="grid4"><Metric label="Selected model" value={result.decision?.selectedModel ?? "—"} sub={result.provider ?? "—"}/><Metric label="Quality" value={result.metrics?.quality==null?"—":`${(result.metrics.quality*100).toFixed(1)}%`} sub="Deterministic rubric score"/><Metric label="Latency" value={result.metrics?.latencyMs?`${result.metrics.latencyMs}ms`:"—"} sub={`${result.metrics?.fallbackCount??0} internal fallback(s)`}/><Metric label="Persistence" value={result.persisted?"Saved":"Not saved"} sub={result.runId ?? "—"}/></section><section className="grid2"><div className="card"><h2 className="sectionTitle">Routing decision</h2><p className="sectionSub">Why the router accepted the selected candidate</p><p className="bodyText">{result.decision?.reason}</p></div><div className="card"><h2 className="sectionTitle">Model output</h2><pre className="outputBlock">{result.candidates?.[0]?.output || "No output"}</pre></div></section><section className="card"><div className="topRow"><div><h2 className="sectionTitle">Execution trace</h2><p className="sectionSub">Internal failures are not exposed as provider error dumps.</p></div><span className="pill">{result.runId}</span></div><div className="trace">{result.trace?.map((t:any,i:number)=><div className="traceItem" key={`${t.step}-${i}`}><div className="traceMarker">{t.status === "complete" ? "✓" : "•"}</div><div><div className="traceTitle">{t.step}</div><div className="traceDetail">{t.detail}</div></div></div>)}</div></section></div>}
+  </DashboardShell>;
 }
+function Metric({label,value,sub}:{label:string,value:any,sub:string}){return <div className="card"><div className="metricLabel">{label}</div><div className="metricValue compact">{value}</div><div className="metricDelta">{sub}</div></div>}
