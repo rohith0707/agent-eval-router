@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import benchmarkCases from "@/benchmarks/routing-bench-v1.json";
 import { db, databaseConfigured } from "@/lib/db";
 import { average, p95, rate } from "@/lib/metrics";
-import { deterministicGrade, runProviderCascade } from "@/lib/providers";
+import { AttemptResult, deterministicGrade, runProviderCascade } from "@/lib/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ type BenchmarkResult = {
   provider: string | null;
   model: string | null;
   fallbacks: number;
-  attempts: ReturnType<typeof runProviderCascade> extends Promise<infer T> ? T extends { attempts: infer A } ? A : never : never;
+  attempts: AttemptResult[];
   output?: string;
 };
 
@@ -60,9 +60,7 @@ async function mapWithConcurrency<T, R>(
     }
   }
 
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, () => runner()),
-  );
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => runner()));
   return results;
 }
 
@@ -140,8 +138,7 @@ export async function POST() {
             },
           ],
         }));
-        const inserted = await db.evaluationRun.createMany({ data });
-        persisted = inserted.count;
+        persisted = (await db.evaluationRun.createMany({ data })).count;
       } catch (error) {
         console.error("Benchmark persistence failed", error);
       }
@@ -171,21 +168,14 @@ export async function POST() {
       byCategory: Object.fromEntries(
         [...new Set(results.map(result => result.category))].map(category => {
           const categoryResults = results.filter(result => result.category === category);
-          return [
-            category,
-            {
-              cases: categoryResults.length,
-              passed: categoryResults.filter(result => result.status === "passed").length,
-              quality: Number((average(categoryResults.map(result => result.quality)) ?? 0).toFixed(3)),
-            },
-          ];
+          return [category, {
+            cases: categoryResults.length,
+            passed: categoryResults.filter(result => result.status === "passed").length,
+            quality: Number((average(categoryResults.map(result => result.quality)) ?? 0).toFixed(3)),
+          }];
         }),
       ),
-      failures: failed.slice(0, 10).map(result => ({
-        id: result.id,
-        category: result.category,
-        attempts: result.attempts,
-      })),
+      failures: failed.slice(0, 10).map(result => ({ id: result.id, category: result.category, attempts: result.attempts })),
     });
   } catch (error) {
     console.error("Benchmark run failed", error);
