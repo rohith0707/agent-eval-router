@@ -8,12 +8,19 @@ export type AttemptResult = { provider: ProviderName; model: string; outcome: "s
 const ATTEMPT_TIMEOUT_MS = Number(process.env.PROVIDER_ATTEMPT_TIMEOUT_MS ?? 3500);
 const TOTAL_DEADLINE_MS = Number(process.env.PROVIDER_TOTAL_DEADLINE_MS ?? 50000);
 
+/**
+ * Internal model catalog.
+ * Users configure ONE key per provider. They never need to know or configure
+ * individual model IDs. Provider-specific model failures are handled internally.
+ *
+ * The order is intentionally cheap/fast first, then progressively stronger models.
+ */
 const MODEL_REGISTRY: Record<ProviderName, string[]> = {
-  // Cheap/fast first. The registry is internal; users only provide provider keys.
   gemini: [
-    "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
-    "gemini-3.6-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-2.5-flash",
   ],
   huggingface: [
     "Qwen/Qwen3-8B",
@@ -24,14 +31,10 @@ const MODEL_REGISTRY: Record<ProviderName, string[]> = {
     "meta/llama-3.2-1b-instruct",
     "meta/llama-3.2-3b-instruct",
     "meta/llama-3.1-8b-instruct",
-    "meta/llama-3.3-70b-instruct",
   ],
-  openrouter: [
-    "openrouter/free",
-    "qwen/qwen3-32b:free",
-    "qwen/qwen3-30b-a3b-thinking-2507:free",
-    "qwen/qwen3-235b-a22b-2507:free",
-  ],
+  // openrouter/free dynamically selects from the currently available free pool.
+  // This is intentionally preferred to hard-coding volatile free model slugs.
+  openrouter: ["openrouter/free"],
 };
 
 function getCredentials(provider: ProviderName): string | undefined {
@@ -44,6 +47,7 @@ function getCredentials(provider: ProviderName): string | undefined {
 }
 
 function getConfiguredModels(provider: ProviderName): string[] {
+  // Optional server-side override for operations teams; never exposed to users.
   const envName = `${provider.toUpperCase()}_MODELS`;
   const override = process.env[envName];
   if (override) return override.split(",").map(v => v.trim()).filter(Boolean);
@@ -60,7 +64,6 @@ export function configuredProviders(): Record<ProviderName, boolean> {
 }
 
 export function providerOrder(): ProviderName[] {
-  // Serving order: strongest low-cost/low-latency provider first, then fallback providers.
   const configured = configuredProviders();
   return (["gemini", "huggingface", "nvidia", "openrouter"] as ProviderName[]).filter(p => configured[p]);
 }
@@ -83,7 +86,7 @@ function getEndpoint(provider: ProviderName): string {
 function classifyFailure(error: unknown): AttemptResult["outcome"] {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   if (message.includes("timed out")) return "timeout";
-  if (message.includes(" returned empty")) return "empty";
+  if (message.includes("returned empty")) return "empty";
   if (/\b(400|401|403|404|409|422)\b/.test(message)) return "rejected";
   return "transport";
 }
@@ -103,18 +106,15 @@ export async function callProvider(provider: ProviderName, model: string, messag
     }
 
     const requestBody: Record<string, unknown> = { model, messages, max_tokens: maxTokens, stream: false };
-    // Gemini's current OpenAI-compatible endpoint can reject sampling parameters; keep it minimal.
     if (provider !== "gemini") {
       requestBody.temperature = 0.1;
       requestBody.top_p = 0.7;
     }
 
     const response = await fetch(getEndpoint(provider), {
-      method: "POST",
-      headers,
+      method: "POST", headers,
       body: JSON.stringify(requestBody),
-      cache: "no-store",
-      signal: controller.signal,
+      cache: "no-store", signal: controller.signal,
     });
     const body = await response.text();
     if (!response.ok) throw new Error(`${provider} ${response.status}: ${body.slice(0, 300)}`);
@@ -126,40 +126,44 @@ export async function callProvider(provider: ProviderName, model: string, messag
     if (!output.trim()) throw new Error(`${provider} returned empty output`);
 
     return {
-      provider,
-      model,
-      output,
+      provider, model, output,
       latencyMs: Math.round(performance.now() - started),
       inputTokens: Number(usage.prompt_tokens ?? usage.input_tokens ?? 0),
       outputTokens: Number(usage.completion_tokens ?? usage.output_tokens ?? 0),
       totalTokens: Number(usage.total_tokens ?? 0),
     };
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(`${provider} request timed out`);
-    }
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error(`${provider} request timed out`);
     throw error;
-  } finally {
-    clearTimeout(timer);
-  }
+  } finally { clearTimeout(timer); }
 }
 
+/**
+ * Production serving policy:
+ * - Try every configured model in deterministic priority order until one works.
+ * - Missing provider keys are skipped automatically.
+ * - Provider/model errors stay server-side; callers receive only the successful answer.
+ * - If everything fails, return a generic service-unavailable state, never raw API errors.
+ */
 export async function runProviderCascade(messages: Message[], maxTokens = 100) {
   const started = performance.now();
   const attempts: AttemptResult[] = [];
 
   for (const provider of providerOrder()) {
     for (const model of getConfiguredModels(provider)) {
-      const elapsed = performance.now() - started;
-      if (elapsed + ATTEMPT_TIMEOUT_MS > TOTAL_DEADLINE_MS) break;
-
+      if (performance.now() - started + ATTEMPT_TIMEOUT_MS > TOTAL_DEADLINE_MS) break;
       const attemptStarted = performance.now();
       try {
         const result = await callProvider(provider, model, messages, maxTokens);
         attempts.push({ provider, model, outcome: "success", latencyMs: result.latencyMs });
         return { result, attempts, exhausted: false };
       } catch (error) {
-        attempts.push({ provider, model, outcome: classifyFailure(error), latencyMs: Math.round(performance.now() - attemptStarted) });
+        attempts.push({
+          provider,
+          model,
+          outcome: classifyFailure(error),
+          latencyMs: Math.round(performance.now() - attemptStarted),
+        });
       }
     }
   }
