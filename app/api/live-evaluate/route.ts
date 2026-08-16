@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, databaseConfigured } from "@/lib/db";
 import { candidates, route } from "@/lib/engine";
 import { deterministicGrade, nvidiaChat } from "@/lib/nvidia";
+import { getNvidiaModel } from "@/lib/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const task = typeof body.task === "string" && body.task.trim() ? body.task.trim() : "Explain three concrete reliability controls for a production RAG system.";
-    const model = process.env.NVIDIA_MODEL || "meta/llama-3.3-70b-instruct";
+    const model = getNvidiaModel();
     let output = "";
     let latencyMs = 0;
     let inputTokens = 0;
@@ -44,15 +45,36 @@ export async function POST(req: Request) {
       { step: "Independent grading", status: "complete", detail: `Quality ${(grade.quality * 100).toFixed(1)}% · ${grade.reason}` },
       { step: "Routing decision", status: decision.passed ? "complete" : "degraded", detail: decision.reason },
     ];
-    const run = await db.evaluationRun.create({ data: {
-      externalId, task, status: decision.passed ? "passed" : "degraded", selectedModel: decision.selected.model,
-      reason: decision.reason, quality: grade.quality, latencyMs, cost: 0, reliability: source === "nvidia_nim" ? 1 : 0.5,
-      candidatesJson: [{ model, output, ...grade, source, inputTokens, outputTokens }], traceJson: trace,
-    }});
-    return NextResponse.json({ runId: run.externalId, source, task, status: run.status,
-      decision: { selectedModel: run.selectedModel, reason: run.reason },
-      metrics: { quality: grade.quality, latencyMs, reliability: run.reliability, cost: null, inputTokens, outputTokens },
-      candidates: [{ model, output, ...grade, latencyMs, source }], trace });
+
+    if (!databaseConfigured()) {
+      return NextResponse.json({
+        runId: externalId, task, status: decision.passed ? "passed" : "degraded", persisted: false,
+        warning: "Evaluation completed, but persistence is not configured. Add DATABASE_URL (or POSTGRES_PRISMA_URL / POSTGRES_URL) to Vercel Production.",
+        decision: { selectedModel: decision.selected.model, reason: decision.reason },
+        metrics: { quality: grade.quality, latencyMs, reliability: source === "nvidia_nim" ? 1 : 0.5, cost: null, inputTokens, outputTokens },
+        candidates: [{ model, output, ...grade, latencyMs, source }], trace
+      });
+    }
+
+    try {
+      const run = await db.evaluationRun.create({ data: {
+        externalId, task, status: decision.passed ? "passed" : "degraded", selectedModel: decision.selected.model,
+        reason: decision.reason, quality: grade.quality, latencyMs, cost: 0, reliability: source === "nvidia_nim" ? 1 : 0.5,
+        candidatesJson: [{ model, output, ...grade, source, inputTokens, outputTokens }], traceJson: trace,
+      }});
+      return NextResponse.json({ runId: run.externalId, source, task, status: run.status, persisted: true,
+        decision: { selectedModel: run.selectedModel, reason: run.reason },
+        metrics: { quality: grade.quality, latencyMs, reliability: run.reliability, cost: null, inputTokens, outputTokens },
+        candidates: [{ model, output, ...grade, latencyMs, source }], trace });
+    } catch {
+      return NextResponse.json({
+        runId: externalId, source, task, status: decision.passed ? "passed" : "degraded", persisted: false,
+        warning: "Evaluation completed, but persistence failed. Check the Neon connection and ensure the Prisma EvaluationRun table exists.",
+        decision: { selectedModel: decision.selected.model, reason: decision.reason },
+        metrics: { quality: grade.quality, latencyMs, reliability: source === "nvidia_nim" ? 1 : 0.5, cost: null, inputTokens, outputTokens },
+        candidates: [{ model, output, ...grade, latencyMs, source }], trace
+      });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Evaluation failed";
     return NextResponse.json({ error: message, source: "nvidia_nim" }, { status: 502 });
