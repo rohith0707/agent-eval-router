@@ -4,7 +4,8 @@ export type ProviderName = "nvidia" | "huggingface" | "openrouter";
 export type Message = { role: "system" | "user"; content: string };
 export type ProviderResult = { provider: ProviderName; model: string; output: string; latencyMs: number; inputTokens: number; outputTokens: number; totalTokens: number };
 
-const TIMEOUT_MS = Number(process.env.PROVIDER_TIMEOUT_MS ?? 15000);
+// Keep each provider bounded so the auto-router can fail over within Vercel's function window.
+const TIMEOUT_MS = Number(process.env.PROVIDER_TIMEOUT_MS ?? 12000);
 
 function getCredentials(provider: ProviderName): string | undefined {
   switch (provider) {
@@ -16,9 +17,9 @@ function getCredentials(provider: ProviderName): string | undefined {
 
 export function getProviderModel(provider: ProviderName): string {
   switch (provider) {
-    case "nvidia": return process.env.NVIDIA_MODEL ?? "meta/llama-3.2-3b-instruct";
-    case "huggingface": return process.env.HF_MODEL ?? "Qwen/Qwen2.5-7B-Instruct";
-    case "openrouter": return process.env.OPENROUTER_MODEL ?? "openai/gpt-oss-20b:free";
+    case "nvidia": return process.env.NVIDIA_MODEL ?? "meta/llama-3.2-1b-instruct";
+    case "huggingface": return process.env.HF_MODEL ?? "google/gemma-2-2b-it";
+    case "openrouter": return process.env.OPENROUTER_MODEL ?? "openrouter/free";
   }
 }
 
@@ -41,7 +42,7 @@ export function providerOrder(): ProviderName[] {
   return (["nvidia", "huggingface", "openrouter"] as ProviderName[]).filter(p => configured[p]);
 }
 
-export async function callProvider(provider: ProviderName, messages: Message[], maxTokens = 160): Promise<ProviderResult> {
+export async function callProvider(provider: ProviderName, messages: Message[], maxTokens = 100): Promise<ProviderResult> {
   const key = getCredentials(provider);
   if (!key) throw new Error(`${provider} credentials are not configured on the server`);
   const model = getProviderModel(provider);
