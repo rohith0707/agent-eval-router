@@ -4,9 +4,10 @@ export type ProviderName = "gemini" | "huggingface" | "nvidia" | "openrouter";
 export type Message = { role: "system" | "user"; content: string };
 export type ProviderResult = { provider: ProviderName; model: string; output: string; latencyMs: number; inputTokens: number; outputTokens: number; totalTokens: number };
 export type AttemptResult = { provider: ProviderName; model: string; outcome: "success" | "timeout" | "rejected" | "empty" | "transport"; latencyMs: number };
+export type CascadeOptions = { attemptTimeoutMs?: number; totalDeadlineMs?: number; maxModelsPerProvider?: number };
 
-const ATTEMPT_TIMEOUT_MS = Number(process.env.PROVIDER_ATTEMPT_TIMEOUT_MS ?? 3500);
-const TOTAL_DEADLINE_MS = Number(process.env.PROVIDER_TOTAL_DEADLINE_MS ?? 50000);
+const DEFAULT_ATTEMPT_TIMEOUT_MS = Number(process.env.PROVIDER_ATTEMPT_TIMEOUT_MS ?? 3500);
+const DEFAULT_TOTAL_DEADLINE_MS = Number(process.env.PROVIDER_TOTAL_DEADLINE_MS ?? 50000);
 
 const MODEL_REGISTRY: Record<ProviderName, string[]> = {
   gemini: [
@@ -81,12 +82,18 @@ function classifyFailure(error: unknown): AttemptResult["outcome"] {
   return "transport";
 }
 
-export async function callProvider(provider: ProviderName, model: string, messages: Message[], maxTokens = 100): Promise<ProviderResult> {
+export async function callProvider(
+  provider: ProviderName,
+  model: string,
+  messages: Message[],
+  maxTokens = 100,
+  attemptTimeoutMs = DEFAULT_ATTEMPT_TIMEOUT_MS,
+): Promise<ProviderResult> {
   const key = getCredentials(provider);
   if (!key) throw new Error(`${provider} credentials are not configured`);
   const started = performance.now();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), attemptTimeoutMs);
 
   try {
     const headers: Record<string, string> = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
@@ -102,9 +109,11 @@ export async function callProvider(provider: ProviderName, model: string, messag
     }
 
     const response = await fetch(getEndpoint(provider), {
-      method: "POST", headers,
+      method: "POST",
+      headers,
       body: JSON.stringify(requestBody),
-      cache: "no-store", signal: controller.signal,
+      cache: "no-store",
+      signal: controller.signal,
     });
     const body = await response.text();
     if (!response.ok) throw new Error(`${provider} ${response.status}: ${body.slice(0, 300)}`);
@@ -116,7 +125,9 @@ export async function callProvider(provider: ProviderName, model: string, messag
     if (!output.trim()) throw new Error(`${provider} returned empty output`);
 
     return {
-      provider, model, output,
+      provider,
+      model,
+      output,
       latencyMs: Math.round(performance.now() - started),
       inputTokens: Number(usage.prompt_tokens ?? usage.input_tokens ?? 0),
       outputTokens: Number(usage.completion_tokens ?? usage.output_tokens ?? 0),
@@ -125,19 +136,25 @@ export async function callProvider(provider: ProviderName, model: string, messag
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw new Error(`${provider} request timed out`);
     throw error;
-  } finally { clearTimeout(timer); }
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-export async function runProviderCascade(messages: Message[], maxTokens = 100) {
+export async function runProviderCascade(messages: Message[], maxTokens = 100, options: CascadeOptions = {}) {
   const started = performance.now();
   const attempts: AttemptResult[] = [];
+  const attemptTimeoutMs = options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
+  const totalDeadlineMs = options.totalDeadlineMs ?? DEFAULT_TOTAL_DEADLINE_MS;
+  const maxModelsPerProvider = options.maxModelsPerProvider ?? Number.POSITIVE_INFINITY;
 
   for (const provider of providerOrder()) {
-    for (const model of getConfiguredModels(provider)) {
-      if (performance.now() - started + ATTEMPT_TIMEOUT_MS > TOTAL_DEADLINE_MS) break;
+    const models = getConfiguredModels(provider).slice(0, maxModelsPerProvider);
+    for (const model of models) {
+      if (performance.now() - started + attemptTimeoutMs > totalDeadlineMs) break;
       const attemptStarted = performance.now();
       try {
-        const result = await callProvider(provider, model, messages, maxTokens);
+        const result = await callProvider(provider, model, messages, maxTokens, attemptTimeoutMs);
         attempts.push({ provider, model, outcome: "success", latencyMs: result.latencyMs });
         return { result, attempts, exhausted: false };
       } catch (error) {
@@ -151,7 +168,17 @@ export async function runProviderCascade(messages: Message[], maxTokens = 100) {
 
 export function deterministicGrade(task: string, answer: string) {
   const text = `${task}\n${answer}`.toLowerCase();
-  const checks = [/reliab|validation|guardrail|fallback|timeout|retry/.test(text), /retriev|ground|context|embedding|chunk/.test(text), /cost|latency|observability|monitor|trace/.test(text)];
+  const checks = [
+    /reliab|validation|guardrail|fallback|timeout|retry/.test(text),
+    /retriev|ground|context|embedding|chunk/.test(text),
+    /cost|latency|observability|monitor|trace/.test(text),
+  ];
   const score = checks.filter(Boolean).length / checks.length;
-  return { quality: Number(score.toFixed(3)), correctness: Number(score.toFixed(3)), relevance: Number((checks[0] || checks[1] ? 0.9 : 0.5).toFixed(3)), groundedness: Number((checks[1] ? 0.9 : 0.5).toFixed(3)), reason: `Deterministic rubric: ${checks.filter(Boolean).length}/${checks.length} checks passed.` };
+  return {
+    quality: Number(score.toFixed(3)),
+    correctness: Number(score.toFixed(3)),
+    relevance: Number((checks[0] || checks[1] ? 0.9 : 0.5).toFixed(3)),
+    groundedness: Number((checks[1] ? 0.9 : 0.5).toFixed(3)),
+    reason: `Deterministic rubric: ${checks.filter(Boolean).length}/${checks.length} checks passed.`,
+  };
 }
