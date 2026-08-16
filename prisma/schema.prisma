@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model EvaluationRun {
+  id             String   @id @default(cuid())
+  externalId     String   @unique
+  task           String
+  status         String
+  selectedModel  String
+  reason         String
+  quality        Float
+  latencyMs      Int
+  cost           Float
+  reliability    Float
+  candidatesJson Json
+  traceJson      Json
+  createdAt      DateTime @default(now())
+}
+
+model EvaluationCase {
+  id             String   @id
+  task           String
+  category       String
+  difficulty     String
+  expectedOutput Json?
+  createdAt      DateTime @default(now())
+}
