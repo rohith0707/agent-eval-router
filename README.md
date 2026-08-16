@@ -1,86 +1,101 @@
 # Agent Eval Router
 
-**Benchmark-driven routing and evaluation for LLM workloads.**
+**Python-first evaluation and routing infrastructure for LLM and agent workloads.**
 
-Agent Eval Router explores a practical production question: **given a task and explicit quality, latency, and cost constraints, which model or agent should run it — and can we explain and measure that decision?**
-
-## Product
-
-The repository includes a Next.js evaluation console and a routing engine with:
-
-- model candidate scoring
-- quality / latency / cost constraints
-- explainable routing decisions
-- fallback selection
-- evaluation run persistence with Prisma/PostgreSQL
-- execution traces
-- benchmark-oriented model scorecards
+Agent Eval Router explores a production question: **given a task and explicit quality, latency, and cost constraints, which model or agent should run it — and can we measure and explain that decision?**
 
 ## Architecture
 
 ```text
-Task
-  ↓
-Routing Policy
-  ↓
-Candidate Filtering
-  ↓
-Model / Agent Execution
-  ↓
-Evaluation
-  ├── Quality
-  ├── Latency
-  ├── Cost
-  └── Reliability
-  ↓
-Decision + Trace
-  ↓
-Evaluation Console
+                    Evaluation Console
+                         Next.js
+                            │
+                            ▼
+                       FastAPI API
+                            │
+              ┌─────────────┼─────────────┐
+              ▼             ▼             ▼
+           Router       Evaluator      Tracing
+              │             │             │
+        ┌─────┼─────┐       │             │
+        ▼     ▼     ▼       │             │
+      OpenAI Claude Local   │             │
+        │     │     │       │             │
+        └─────┼─────┘       │             │
+              ▼             ▼             ▼
+             Agent      Benchmark      Run Store
+              │             │             │
+              └─────────────┼─────────────┘
+                            ▼
+                     Decision + Report
 ```
 
-## Local development
+## Repository structure
+
+```text
+backend/     Python/FastAPI core: routing, evaluation, adapters and benchmarks
+app/         Next.js evaluation console
+prisma/      PostgreSQL persistence schema
+docs/        Evaluation methodology and architecture
+```
+
+The Python service is the **source of truth for AI execution and evaluation**. The Next.js application is the presentation layer.
+
+## Python engine
 
 ```bash
-npm install
-cp .env.example .env
-npm run dev
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -e '.[dev]'
+uvicorn app.main:app --reload
 ```
 
-For persistence, set `DATABASE_URL` to a PostgreSQL database and run:
+API:
 
-```bash
-npx prisma generate
-npx prisma db push
+- `GET /health`
+- `POST /v1/evaluations`
+
+Example request:
+
+```json
+{
+  "task": "Return a structured comparison of two approaches",
+  "quality_threshold": 0.90,
+  "latency_budget_ms": 2500,
+  "cost_budget": 0.03
+}
 ```
 
-The API remains usable without a configured database; evaluation responses are returned with `persisted: false` when persistence is unavailable.
+## Current status
 
-## Current v0.1 baseline
+### Implemented
 
-| Model | Quality | p95 latency | Cost / task | Reliability |
-|---|---:|---:|---:|---:|
-| GPT-5 | 91.8% | 1.42s | $0.014 | 96.2% |
-| Claude Sonnet | 95.2% | 1.88s | $0.021 | 97.1% |
-| Local Llama | 87.4% | 0.76s | $0.002 | 91.4% |
+- Python-first routing engine
+- FastAPI evaluation API
+- typed routing domain models
+- constraint-based model selection
+- deterministic fallback behavior
+- Next.js evaluation console
+- PostgreSQL/Prisma persistence foundation
+- evaluation methodology
+- CI foundation
 
-These are **baseline fixture values for v0.1**, not claims of live provider measurements.
+### In progress
 
-## Roadmap
+- Real OpenAI / Anthropic / local model adapters
+- 100+ case benchmark execution
+- semantic and task-specific evaluators
+- agent/tool execution
+- failure taxonomy and drill-down
+- OpenTelemetry traces
+- adaptive routing from historical results
+- regression gates in CI
 
-- [x] Explainable constraint-based routing
-- [x] Evaluation API
-- [x] Persistent run schema
-- [x] Evaluation console
-- [ ] Real OpenAI / Anthropic / local model adapters
-- [ ] Real 100+ case benchmark execution
-- [ ] Semantic and task-specific evaluators
-- [ ] Failure taxonomy and drill-down
-- [ ] OpenTelemetry traces
-- [ ] Adaptive routing from historical results
-- [ ] Regression gates in CI
+Current model metrics are **v0.1 fixture values**, not live provider measurements.
 
-## Why this project exists
+## Engineering thesis
 
-An LLM call is not a production AI system. Routing, evaluation, failure handling, observability, latency, and cost all influence whether a model choice is actually good.
+An LLM call is only one component of a production AI system. Model choice must be evaluated against task quality, latency, cost, reliability, and failure modes.
 
-This project is an engineering exploration of those decisions, with benchmarks and methodology treated as first-class product artifacts.
+The long-term goal is to compare **single-model baselines against adaptive routing** and determine whether routing can improve the quality/cost/latency trade-off without increasing reliability failures.
