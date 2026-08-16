@@ -8,32 +8,23 @@ export type AttemptResult = { provider: ProviderName; model: string; outcome: "s
 const ATTEMPT_TIMEOUT_MS = Number(process.env.PROVIDER_ATTEMPT_TIMEOUT_MS ?? 3500);
 const TOTAL_DEADLINE_MS = Number(process.env.PROVIDER_TOTAL_DEADLINE_MS ?? 50000);
 
-/**
- * Internal model catalog.
- * Users configure ONE key per provider. They never need to know or configure
- * individual model IDs. Provider-specific model failures are handled internally.
- *
- * The order is intentionally cheap/fast first, then progressively stronger models.
- */
 const MODEL_REGISTRY: Record<ProviderName, string[]> = {
   gemini: [
-    "gemini-3.1-flash-lite",
     "gemini-2.5-flash-lite",
-    "gemini-3.5-flash",
-    "gemini-2.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-3.6-flash",
   ],
   huggingface: [
-    "Qwen/Qwen3-8B",
-    "google/gemma-3-4b-it",
-    "meta-llama/Llama-3.2-3B-Instruct",
+    "google/gemma-2-2b-it",
+    "Qwen/Qwen3-4B-Thinking-2507",
+    "Qwen/Qwen2.5-7B-Instruct-1M",
   ],
   nvidia: [
     "meta/llama-3.2-1b-instruct",
     "meta/llama-3.2-3b-instruct",
     "meta/llama-3.1-8b-instruct",
   ],
-  // openrouter/free dynamically selects from the currently available free pool.
-  // This is intentionally preferred to hard-coding volatile free model slugs.
   openrouter: ["openrouter/free"],
 };
 
@@ -47,7 +38,6 @@ function getCredentials(provider: ProviderName): string | undefined {
 }
 
 function getConfiguredModels(provider: ProviderName): string[] {
-  // Optional server-side override for operations teams; never exposed to users.
   const envName = `${provider.toUpperCase()}_MODELS`;
   const override = process.env[envName];
   if (override) return override.split(",").map(v => v.trim()).filter(Boolean);
@@ -138,13 +128,6 @@ export async function callProvider(provider: ProviderName, model: string, messag
   } finally { clearTimeout(timer); }
 }
 
-/**
- * Production serving policy:
- * - Try every configured model in deterministic priority order until one works.
- * - Missing provider keys are skipped automatically.
- * - Provider/model errors stay server-side; callers receive only the successful answer.
- * - If everything fails, return a generic service-unavailable state, never raw API errors.
- */
 export async function runProviderCascade(messages: Message[], maxTokens = 100) {
   const started = performance.now();
   const attempts: AttemptResult[] = [];
@@ -158,12 +141,7 @@ export async function runProviderCascade(messages: Message[], maxTokens = 100) {
         attempts.push({ provider, model, outcome: "success", latencyMs: result.latencyMs });
         return { result, attempts, exhausted: false };
       } catch (error) {
-        attempts.push({
-          provider,
-          model,
-          outcome: classifyFailure(error),
-          latencyMs: Math.round(performance.now() - attemptStarted),
-        });
+        attempts.push({ provider, model, outcome: classifyFailure(error), latencyMs: Math.round(performance.now() - attemptStarted) });
       }
     }
   }
@@ -173,17 +151,7 @@ export async function runProviderCascade(messages: Message[], maxTokens = 100) {
 
 export function deterministicGrade(task: string, answer: string) {
   const text = `${task}\n${answer}`.toLowerCase();
-  const checks = [
-    /reliab|validation|guardrail|fallback|timeout|retry/.test(text),
-    /retriev|ground|context|embedding|chunk/.test(text),
-    /cost|latency|observability|monitor|trace/.test(text),
-  ];
+  const checks = [/reliab|validation|guardrail|fallback|timeout|retry/.test(text), /retriev|ground|context|embedding|chunk/.test(text), /cost|latency|observability|monitor|trace/.test(text)];
   const score = checks.filter(Boolean).length / checks.length;
-  return {
-    quality: Number(score.toFixed(3)),
-    correctness: Number(score.toFixed(3)),
-    relevance: Number((checks[0] || checks[1] ? 0.9 : 0.5).toFixed(3)),
-    groundedness: Number((checks[1] ? 0.9 : 0.5).toFixed(3)),
-    reason: `Deterministic rubric: ${checks.filter(Boolean).length}/${checks.length} checks passed.`,
-  };
+  return { quality: Number(score.toFixed(3)), correctness: Number(score.toFixed(3)), relevance: Number((checks[0] || checks[1] ? 0.9 : 0.5).toFixed(3)), groundedness: Number((checks[1] ? 0.9 : 0.5).toFixed(3)), reason: `Deterministic rubric: ${checks.filter(Boolean).length}/${checks.length} checks passed.` };
 }
