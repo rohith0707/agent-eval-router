@@ -6,6 +6,7 @@ class EvaluationRequest(BaseModel):
     quality_threshold: float = Field(default=0.90, ge=0, le=1)
     latency_budget_ms: int = Field(default=2500, gt=0)
     cost_budget: float = Field(default=0.03, ge=0)
+    max_tokens: int = Field(default=512, gt=0, le=8192)
 
 
 class ModelCandidate(BaseModel):
