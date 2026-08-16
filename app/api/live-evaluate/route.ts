@@ -1,51 +1,60 @@
 import { NextResponse } from "next/server";
 import { db, databaseConfigured } from "@/lib/db";
 import { route } from "@/lib/engine";
-import { deterministicGrade, providerOrder, runProviderCascade } from "@/lib/providers";
+import { deterministicGrade, runProviderCascade } from "@/lib/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+const DEFAULT_TASK = "Explain three concrete reliability controls for a production RAG system.";
+const MAX_TASK_LENGTH = 12_000;
+
+function normalizeTask(value: unknown): string {
+  if (typeof value !== "string") return DEFAULT_TASK;
+  const task = value.trim();
+  return task.length > 0 ? task.slice(0, MAX_TASK_LENGTH) : DEFAULT_TASK;
+}
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const task = typeof body.task === "string" && body.task.trim()
-      ? body.task.trim()
-      : "Explain three concrete reliability controls for a production RAG system.";
-
-    if (!providerOrder().length) {
-      return NextResponse.json(
-        { error: "Evaluation service is temporarily unavailable." },
-        { status: 503 }
-      );
-    }
+    const body = await req.json().catch(() => null);
+    const task = normalizeTask(body && typeof body === "object" ? (body as Record<string, unknown>).task : undefined);
 
     const messages = [
-      { role: "system" as const, content: "You are a production AI assistant. Answer directly, accurately, and concisely. Prefer concrete engineering controls and measurable trade-offs." },
+      {
+        role: "system" as const,
+        content: "You are a production AI assistant. Answer directly, accurately, and concisely. Prefer concrete engineering controls and measurable trade-offs.",
+      },
       { role: "user" as const, content: task },
     ];
 
-    // The cascade owns provider/model fallback. Raw provider errors never leave this route.
+    // The cascade owns provider/model availability and fallback. Provider diagnostics stay server-side.
     const cascade = await runProviderCascade(messages, 160);
     const generation = cascade.result;
 
     if (!generation) {
       console.error("Provider cascade exhausted", {
-        attempts: cascade.attempts.map(({ provider, model, outcome, latencyMs }) => ({ provider, model, outcome, latencyMs })),
+        attempts: cascade.attempts,
       });
       return NextResponse.json(
         { error: "Evaluation service is temporarily unavailable. Please try again." },
-        { status: 503 }
+        { status: 503 },
       );
     }
 
     const grade = deterministicGrade(task, generation.output);
-    const observed = [{ model: generation.model, quality: grade.quality, latencyMs: generation.latencyMs, cost: 0, reliability: 1 }];
+    const observed = [{
+      model: generation.model,
+      quality: grade.quality,
+      latencyMs: generation.latencyMs,
+      cost: 0,
+      reliability: 1,
+    }];
     const decision = route(task, 0.8, 5000, 0.03, observed);
     const externalId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const fallbackCount = Math.max(0, cascade.attempts.length - 1);
 
-    const fallbackCount = cascade.attempts.filter(a => a.outcome !== "success").length;
     const trace = [
       { step: "Receive task", status: "complete", detail: "Task accepted by evaluation API" },
       { step: "Model cascade", status: "complete", detail: `${cascade.attempts.length} model attempts · ${fallbackCount} internal fallbacks` },
@@ -72,17 +81,19 @@ export async function POST(req: Request) {
         outputTokens: generation.outputTokens,
         fallbackCount,
       },
-      candidates: [{ model: generation.model, provider: generation.provider, output: generation.output, ...grade, latencyMs: generation.latencyMs, source: generation.provider }],
+      candidates: [{
+        model: generation.model,
+        provider: generation.provider,
+        output: generation.output,
+        ...grade,
+        latencyMs: generation.latencyMs,
+        source: generation.provider,
+      }],
       trace,
-      // Deliberately omit raw provider/model failure messages from the user-facing payload.
     });
 
     if (!databaseConfigured()) {
-      return NextResponse.json(responsePayload(
-        false,
-        externalId,
-        "Evaluation completed, but persistence is not configured."
-      ));
+      return NextResponse.json(responsePayload(false, externalId, "Evaluation completed, but persistence is not configured."));
     }
 
     try {
@@ -97,24 +108,27 @@ export async function POST(req: Request) {
           latencyMs: generation.latencyMs,
           cost: 0,
           reliability: 1,
-          candidatesJson: [{ model: generation.model, provider: generation.provider, output: generation.output, ...grade, inputTokens: generation.inputTokens, outputTokens: generation.outputTokens }],
+          candidatesJson: [{
+            model: generation.model,
+            provider: generation.provider,
+            output: generation.output,
+            ...grade,
+            inputTokens: generation.inputTokens,
+            outputTokens: generation.outputTokens,
+          }],
           traceJson: trace,
         },
       });
       return NextResponse.json(responsePayload(true, run.externalId));
     } catch (error) {
       console.error("Evaluation persistence failed", error);
-      return NextResponse.json(responsePayload(
-        false,
-        externalId,
-        "Evaluation completed, but persistence is temporarily unavailable."
-      ));
+      return NextResponse.json(responsePayload(false, externalId, "Evaluation completed, but persistence is temporarily unavailable."));
     }
   } catch (error) {
     console.error("Evaluation route failed", error);
     return NextResponse.json(
       { error: "Evaluation service is temporarily unavailable. Please try again." },
-      { status: 503 }
+      { status: 503 },
     );
   }
 }
