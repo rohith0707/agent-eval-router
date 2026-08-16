@@ -1,0 +1,21 @@
+[project]
+name = "agent-eval-router"
+version = "0.1.0"
+description = "Python-first evaluation and routing engine for LLM and agent workloads"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116,<1.0",
+  "uvicorn[standard]>=0.35,<1.0",
+  "pydantic>=2.11,<3.0",
+  "httpx>=0.28,<1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.4,<9.0", "pytest-asyncio>=1.1,<2.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
