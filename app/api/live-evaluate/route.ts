@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, databaseConfigured } from "@/lib/db";
 import { route } from "@/lib/engine";
-import { callProvider, deterministicGrade, providerOrder, getProviderModel } from "@/lib/providers";
+import { callProvider, deterministicGrade, providerOrder } from "@/lib/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,12 +22,8 @@ export async function POST(req: Request) {
     let generation: Awaited<ReturnType<typeof callProvider>> | null = null;
     const failures: string[] = [];
     for (const provider of providers) {
-      try {
-        generation = await callProvider(provider, messages, 160);
-        break;
-      } catch (error) {
-        failures.push(error instanceof Error ? error.message : `${provider} failed`);
-      }
+      try { generation = await callProvider(provider, messages, 160); break; }
+      catch (error) { failures.push(error instanceof Error ? error.message : `${provider} failed`); }
     }
     if (!generation) return NextResponse.json({ error: `All configured providers failed: ${failures.join(" | ")}` }, { status: 502 });
 
@@ -49,13 +45,10 @@ export async function POST(req: Request) {
       decision: { selectedModel: decision.selected.model, reason: decision.reason },
       metrics: { quality: grade.quality, latencyMs: generation!.latencyMs, reliability: 1, cost: null, inputTokens: generation!.inputTokens, outputTokens: generation!.outputTokens },
       candidates: [{ model: generation!.model, provider: generation!.provider, output: generation!.output, ...grade, latencyMs: generation!.latencyMs, source: generation!.provider }],
-      trace,
-      providerFailures: failures,
+      trace, providerFailures: failures,
     });
 
-    if (!databaseConfigured()) {
-      return NextResponse.json(responsePayload(false, externalId, "Evaluation completed, but persistence is not configured. Add DATABASE_URL (or a supported Postgres variable) to Vercel Production."));
-    }
+    if (!databaseConfigured()) return NextResponse.json(responsePayload(false, externalId, "Evaluation completed, but persistence is not configured. Add DATABASE_URL (or a supported Postgres variable) to Vercel Production."));
 
     try {
       const run = await db.evaluationRun.create({ data: {
