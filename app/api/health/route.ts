@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { db, databaseConfigured } from "@/lib/db";
-import { getNvidiaApiKey, getNvidiaModel } from "@/lib/config";
+import { configuredProviders, modelRegistry } from "@/lib/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const database = databaseConfigured();
+  const databaseIsConfigured = databaseConfigured();
   let databaseReachable = false;
 
-  if (database) {
+  if (databaseIsConfigured) {
     try {
       await db.$queryRaw`SELECT 1`;
       databaseReachable = true;
@@ -18,20 +18,31 @@ export async function GET() {
     }
   }
 
-  const nvidia = Boolean(getNvidiaApiKey());
-  const ready = database && databaseReachable && nvidia;
+  const providers = configuredProviders();
+  const configuredProviderCount = Object.values(providers).filter(Boolean).length;
+  const modelCount = Object.values(modelRegistry()).reduce((sum, models) => sum + models.length, 0);
 
-  return NextResponse.json({
-    ok: ready,
-    service: "agent-eval-router",
-    checks: {
-      databaseConfigured: database,
-      databaseReachable,
-      nvidiaApiKeyConfigured: nvidia,
-      nvidiaModel: getNvidiaModel(),
+  const ready = databaseIsConfigured && databaseReachable && configuredProviderCount > 0;
+
+  return NextResponse.json(
+    {
+      ok: ready,
+      service: "agent-eval-router",
+      checks: {
+        databaseConfigured: databaseIsConfigured,
+        databaseReachable,
+        providers,
+        configuredProviderCount,
+        internalModelCount: modelCount,
+      },
+      nextStep: ready
+        ? "Runtime configuration is complete."
+        : databaseIsConfigured && !databaseReachable
+          ? "Database credentials exist but the database is unreachable."
+          : configuredProviderCount === 0
+            ? "Configure at least one provider API key in Vercel Production."
+            : "Configure database persistence in Vercel Production.",
     },
-    nextStep: ready
-      ? "Runtime configuration is complete."
-      : "Set the missing Vercel Production environment variables and redeploy.",
-  }, { status: ready ? 200 : 503 });
+    { status: ready ? 200 : 503 },
+  );
 }
