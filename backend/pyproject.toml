@@ -1,6 +1,6 @@
 [project]
 name = "agent-eval-router"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python-first evaluation and routing engine for LLM and agent workloads"
 requires-python = ">=3.11"
 dependencies = [
