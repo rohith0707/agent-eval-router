@@ -1,3 +1,5 @@
+import { getNvidiaApiKey } from "@/lib/config";
+
 export type ChatMessage = { role: "system" | "user"; content: string };
 
 export type NvidiaResult = {
@@ -13,8 +15,8 @@ const BASE_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 const REQUEST_TIMEOUT_MS = 8000;
 
 export async function nvidiaChat(model: string, messages: ChatMessage[], maxTokens = 220): Promise<NvidiaResult> {
-  const key = process.env.NVIDIA_API_KEY;
-  if (!key) throw new Error("NVIDIA_API_KEY is not configured on the server");
+  const key = getNvidiaApiKey();
+  if (!key) throw new Error("NVIDIA_API_KEY is not configured on the server. Add NVIDIA_API_KEY to the Vercel Production environment and redeploy.");
   const started = performance.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
