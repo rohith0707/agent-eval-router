@@ -1,10 +1,9 @@
 import { getNvidiaApiKey } from "@/lib/config";
 
-export type ProviderName = "nvidia" | "huggingface" | "openrouter";
+export type ProviderName = "nvidia" | "huggingface" | "openrouter" | "gemini";
 export type Message = { role: "system" | "user"; content: string };
 export type ProviderResult = { provider: ProviderName; model: string; output: string; latencyMs: number; inputTokens: number; outputTokens: number; totalTokens: number };
 
-// Keep each provider bounded so the auto-router can fail over within Vercel's function window.
 const TIMEOUT_MS = Number(process.env.PROVIDER_TIMEOUT_MS ?? 12000);
 
 function getCredentials(provider: ProviderName): string | undefined {
@@ -12,6 +11,7 @@ function getCredentials(provider: ProviderName): string | undefined {
     case "nvidia": return getNvidiaApiKey();
     case "huggingface": return process.env.HF_TOKEN ?? process.env.HUGGINGFACE_API_KEY;
     case "openrouter": return process.env.OPENROUTER_API_KEY;
+    case "gemini": return process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   }
 }
 
@@ -20,6 +20,7 @@ export function getProviderModel(provider: ProviderName): string {
     case "nvidia": return process.env.NVIDIA_MODEL ?? "meta/llama-3.2-1b-instruct";
     case "huggingface": return process.env.HF_MODEL ?? "google/gemma-2-2b-it";
     case "openrouter": return process.env.OPENROUTER_MODEL ?? "openrouter/free";
+    case "gemini": return process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
   }
 }
 
@@ -28,18 +29,28 @@ function getEndpoint(provider: ProviderName): string {
     case "nvidia": return "https://integrate.api.nvidia.com/v1/chat/completions";
     case "huggingface": return "https://router.huggingface.co/v1/chat/completions";
     case "openrouter": return "https://openrouter.ai/api/v1/chat/completions";
+    case "gemini": return "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
   }
 }
 
 export function configuredProviders(): Record<ProviderName, boolean> {
-  return { nvidia: Boolean(getCredentials("nvidia")), huggingface: Boolean(getCredentials("huggingface")), openrouter: Boolean(getCredentials("openrouter")) };
+  return {
+    nvidia: Boolean(getCredentials("nvidia")),
+    huggingface: Boolean(getCredentials("huggingface")),
+    openrouter: Boolean(getCredentials("openrouter")),
+    gemini: Boolean(getCredentials("gemini")),
+  };
 }
 
 export function providerOrder(): ProviderName[] {
   const configured = configuredProviders();
   const requested = (process.env.EVAL_PROVIDER ?? "auto").toLowerCase();
-  if (requested === "nvidia" || requested === "huggingface" || requested === "openrouter") return configured[requested] ? [requested] : [];
-  return (["nvidia", "huggingface", "openrouter"] as ProviderName[]).filter(p => configured[p]);
+  const valid: ProviderName[] = ["nvidia", "huggingface", "openrouter", "gemini"];
+  if (valid.includes(requested as ProviderName)) {
+    const p = requested as ProviderName;
+    return configured[p] ? [p] : [];
+  }
+  return valid.filter(p => configured[p]);
 }
 
 export async function callProvider(provider: ProviderName, messages: Message[], maxTokens = 100): Promise<ProviderResult> {
