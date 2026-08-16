@@ -12,9 +12,11 @@ export type NvidiaResult = {
 };
 
 const BASE_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
-const REQUEST_TIMEOUT_MS = 8000;
+// 8s was too aggressive for hosted NIM inference. Keep this configurable so
+// production can tune it without another code deployment.
+const REQUEST_TIMEOUT_MS = Number(process.env.NVIDIA_TIMEOUT_MS ?? 45000);
 
-export async function nvidiaChat(model: string, messages: ChatMessage[], maxTokens = 220): Promise<NvidiaResult> {
+export async function nvidiaChat(model: string, messages: ChatMessage[], maxTokens = 160): Promise<NvidiaResult> {
   const key = getNvidiaApiKey();
   if (!key) throw new Error("NVIDIA_API_KEY is not configured on the server. Add NVIDIA_API_KEY to the Vercel Production environment and redeploy.");
   const started = performance.now();
@@ -24,7 +26,7 @@ export async function nvidiaChat(model: string, messages: ChatMessage[], maxToke
     const response = await fetch(BASE_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, temperature: 0.1, max_tokens: maxTokens }),
+      body: JSON.stringify({ model, messages, temperature: 0.1, top_p: 0.7, max_tokens: maxTokens, stream: false }),
       cache: "no-store",
       signal: controller.signal,
     });
