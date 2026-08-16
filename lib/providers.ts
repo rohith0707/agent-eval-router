@@ -1,6 +1,6 @@
 import { getNvidiaApiKey } from "@/lib/config";
 
-export type ProviderName = "nvidia" | "huggingface" | "openrouter" | "gemini";
+export type ProviderName = "gemini" | "huggingface" | "nvidia" | "openrouter";
 export type Message = { role: "system" | "user"; content: string };
 export type ProviderResult = { provider: ProviderName; model: string; output: string; latencyMs: number; inputTokens: number; outputTokens: number; totalTokens: number };
 
@@ -8,44 +8,44 @@ const TIMEOUT_MS = Number(process.env.PROVIDER_TIMEOUT_MS ?? 12000);
 
 function getCredentials(provider: ProviderName): string | undefined {
   switch (provider) {
-    case "nvidia": return getNvidiaApiKey();
-    case "huggingface": return process.env.HF_TOKEN ?? process.env.HUGGINGFACE_API_KEY;
-    case "openrouter": return process.env.OPENROUTER_API_KEY;
     case "gemini": return process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+    case "huggingface": return process.env.HF_TOKEN ?? process.env.HUGGINGFACE_API_KEY;
+    case "nvidia": return getNvidiaApiKey();
+    case "openrouter": return process.env.OPENROUTER_API_KEY;
   }
 }
 
 export function getProviderModel(provider: ProviderName): string {
   switch (provider) {
-    case "nvidia": return process.env.NVIDIA_MODEL ?? "meta/llama-3.2-1b-instruct";
+    case "gemini": return process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
     case "huggingface": return process.env.HF_MODEL ?? "google/gemma-2-2b-it";
+    case "nvidia": return process.env.NVIDIA_MODEL ?? "meta/llama-3.2-1b-instruct";
     case "openrouter": return process.env.OPENROUTER_MODEL ?? "openrouter/free";
-    case "gemini": return process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
   }
 }
 
 function getEndpoint(provider: ProviderName): string {
   switch (provider) {
-    case "nvidia": return "https://integrate.api.nvidia.com/v1/chat/completions";
-    case "huggingface": return "https://router.huggingface.co/v1/chat/completions";
-    case "openrouter": return "https://openrouter.ai/api/v1/chat/completions";
     case "gemini": return "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+    case "huggingface": return "https://router.huggingface.co/v1/chat/completions";
+    case "nvidia": return "https://integrate.api.nvidia.com/v1/chat/completions";
+    case "openrouter": return "https://openrouter.ai/api/v1/chat/completions";
   }
 }
 
 export function configuredProviders(): Record<ProviderName, boolean> {
   return {
-    nvidia: Boolean(getCredentials("nvidia")),
-    huggingface: Boolean(getCredentials("huggingface")),
-    openrouter: Boolean(getCredentials("openrouter")),
     gemini: Boolean(getCredentials("gemini")),
+    huggingface: Boolean(getCredentials("huggingface")),
+    nvidia: Boolean(getCredentials("nvidia")),
+    openrouter: Boolean(getCredentials("openrouter")),
   };
 }
 
 export function providerOrder(): ProviderName[] {
   const configured = configuredProviders();
   const requested = (process.env.EVAL_PROVIDER ?? "auto").toLowerCase();
-  const valid: ProviderName[] = ["nvidia", "huggingface", "openrouter", "gemini"];
+  const valid: ProviderName[] = ["gemini", "huggingface", "nvidia", "openrouter"];
   if (valid.includes(requested as ProviderName)) {
     const p = requested as ProviderName;
     return configured[p] ? [p] : [];
@@ -66,9 +66,23 @@ export async function callProvider(provider: ProviderName, messages: Message[], 
       headers["HTTP-Referer"] = process.env.OPENROUTER_SITE_URL ?? "https://agent-eval-router.vercel.app";
       headers["X-Title"] = process.env.OPENROUTER_APP_NAME ?? "Agent Eval Router";
     }
+
+    const requestBody: Record<string, unknown> = {
+      model,
+      messages,
+      max_tokens: maxTokens,
+      stream: false,
+    };
+    // Gemini 2.5 supports reasoning; keep this request compatible and avoid
+    // deprecated sampling parameters in the Gemini OpenAI-compat layer.
+    if (provider !== "gemini") {
+      requestBody.temperature = 0.1;
+      requestBody.top_p = 0.7;
+    }
+
     const response = await fetch(getEndpoint(provider), {
       method: "POST", headers,
-      body: JSON.stringify({ model, messages, temperature: 0.1, top_p: 0.7, max_tokens: maxTokens, stream: false }),
+      body: JSON.stringify(requestBody),
       cache: "no-store", signal: controller.signal,
     });
     const body = await response.text();
