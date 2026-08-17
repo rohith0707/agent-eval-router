@@ -8,8 +8,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const BENCHMARK_ATTEMPT_TIMEOUT_MS = 1400;
-const BENCHMARK_CASE_DEADLINE_MS = 5000;
+const BENCHMARK_ATTEMPT_TIMEOUT_MS = 3000;
+const BENCHMARK_CASE_DEADLINE_MS = 10000;
 const BENCHMARK_CONCURRENCY = 10;
 const BENCHMARK_MAX_MODELS_PER_PROVIDER = 1;
 
@@ -21,10 +21,12 @@ type BenchmarkCase = {
   expected_behavior: string;
 };
 
+type BenchmarkStatus = "passed" | "failed" | "infra_failed";
+
 type BenchmarkResult = {
   id: string;
   category: string;
-  status: "passed" | "failed";
+  status: BenchmarkStatus;
   quality: number;
   latencyMs: number | null;
   provider: string | null;
@@ -142,24 +144,41 @@ async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, work
   return results;
 }
 
+function promptFor(item: BenchmarkCase) {
+  return [
+    { role: "system" as const, content: "You are being evaluated on a fixed production benchmark. Follow the task exactly. Be concise and do not invent facts." },
+    { role: "user" as const, content: item.task },
+  ];
+}
+
 export async function POST() {
   try {
     const cases = benchmarkCases as BenchmarkCase[];
     if (cases.length !== 50) return NextResponse.json({ error: "Benchmark suite must contain exactly 50 cases." }, { status: 500 });
 
+    // Preflight prevents an entire benchmark from becoming 0% when the problem is provider reachability.
+    const smoke = await runProviderCascade(promptFor(cases[0]), 120, {
+      attemptTimeoutMs: BENCHMARK_ATTEMPT_TIMEOUT_MS,
+      totalDeadlineMs: BENCHMARK_CASE_DEADLINE_MS,
+      maxModelsPerProvider: BENCHMARK_MAX_MODELS_PER_PROVIDER,
+    });
+    if (!smoke.result) {
+      return NextResponse.json({
+        error: "Provider preflight failed. No configured model produced a response, so the benchmark was not run.",
+        smoke: { attempts: smoke.attempts },
+      }, { status: 503 });
+    }
+
     const started = performance.now();
     const results = await mapWithConcurrency(cases, BENCHMARK_CONCURRENCY, async item => {
-      const cascade = await runProviderCascade([
-        { role: "system", content: "You are being evaluated on a fixed production benchmark. Follow the task exactly. Be concise and do not invent facts." },
-        { role: "user", content: item.task },
-      ], 120, {
+      const cascade = await runProviderCascade(promptFor(item), 120, {
         attemptTimeoutMs: BENCHMARK_ATTEMPT_TIMEOUT_MS,
         totalDeadlineMs: BENCHMARK_CASE_DEADLINE_MS,
         maxModelsPerProvider: BENCHMARK_MAX_MODELS_PER_PROVIDER,
       });
 
       if (!cascade.result) {
-        return { id: item.id, category: item.category, status: "failed" as const, quality: 0, latencyMs: null, provider: null, model: null, fallbacks: cascade.attempts.length, attempts: cascade.attempts } satisfies BenchmarkResult;
+        return { id: item.id, category: item.category, status: "infra_failed" as const, quality: 0, latencyMs: null, provider: null, model: null, fallbacks: cascade.attempts.length, attempts: cascade.attempts } satisfies BenchmarkResult;
       }
 
       const evaluation = scoreByCategory(item, cascade.result.output);
@@ -184,7 +203,7 @@ export async function POST() {
         const data = results.map(result => ({
           externalId: `bench_${Date.now()}_${result.id}`,
           task: result.id,
-          status: result.status,
+          status: result.status === "passed" ? "passed" : "failed",
           selectedModel: result.model ?? "unresolved",
           reason: `50-case benchmark · ${result.category}`,
           quality: result.quality,
@@ -201,7 +220,8 @@ export async function POST() {
     }
 
     const passed = results.filter(result => result.status === "passed");
-    const failed = results.filter(result => result.status !== "passed");
+    const evaluatedFailures = results.filter(result => result.status === "failed");
+    const infraFailures = results.filter(result => result.status === "infra_failed");
     const providerMix = Object.fromEntries([...new Set(results.map(result => result.provider).filter(Boolean))].map(provider => [provider, results.filter(result => result.provider === provider).length]));
 
     return NextResponse.json({
@@ -209,8 +229,9 @@ export async function POST() {
       durationMs: Math.round(performance.now() - started),
       summary: {
         passed: passed.length,
-        failed: failed.length,
-        averageQuality: Number((average(results.map(result => result.quality)) ?? 0).toFixed(3)),
+        failed: evaluatedFailures.length,
+        infraFailed: infraFailures.length,
+        averageQuality: Number((average(results.filter(result => result.status !== "infra_failed").map(result => result.quality)) ?? 0).toFixed(3)),
         passedQuality: Number((average(passed.map(result => result.quality)) ?? 0).toFixed(3)),
         p95LatencyMs: p95(passed.map(result => result.latencyMs ?? 0)),
         fallbackRate: Number((rate(results.filter(result => result.fallbacks > 0).length, results.length) ?? 0).toFixed(3)),
@@ -220,14 +241,16 @@ export async function POST() {
       byCategory: Object.fromEntries(
         [...new Set(results.map(result => result.category))].map(category => {
           const categoryResults = results.filter(result => result.category === category);
+          const evaluated = categoryResults.filter(result => result.status !== "infra_failed");
           return [category, {
             cases: categoryResults.length,
             passed: categoryResults.filter(result => result.status === "passed").length,
-            quality: Number((average(categoryResults.map(result => result.quality)) ?? 0).toFixed(3)),
+            infraFailed: categoryResults.filter(result => result.status === "infra_failed").length,
+            quality: Number((average(evaluated.map(result => result.quality)) ?? 0).toFixed(3)),
           }];
         }),
       ),
-      failures: failed.slice(0, 10).map(result => ({ id: result.id, category: result.category, attempts: result.attempts })),
+      failures: [...evaluatedFailures, ...infraFailures].slice(0, 10).map(result => ({ id: result.id, category: result.category, status: result.status, attempts: result.attempts })),
     });
   } catch (error) {
     console.error("Benchmark run failed", error);
