@@ -27,5 +27,6 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm run typecheck
+      - run: npm run validate:production-contract
       - run: npm run validate:benchmark
       - run: npm run build
