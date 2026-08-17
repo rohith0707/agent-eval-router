@@ -8,6 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "validate:benchmark": "node scripts/validate-benchmark.mjs",
+    "validate:production-contract": "node scripts/validate-production-contract.mjs",
     "db:migrate": "RUN_DB_MIGRATIONS=1 node scripts/vercel-build.mjs"
   },
   "dependencies": {
