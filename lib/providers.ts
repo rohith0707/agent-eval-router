@@ -17,7 +17,14 @@ export type ProviderResult = {
   totalTokens: number;
 };
 export type AttemptOutcome = "success" | "timeout" | "rejected" | "empty" | "transport";
-export type AttemptResult = { provider: ProviderName; model: string; outcome: AttemptOutcome; latencyMs: number };
+export type AttemptResult = {
+  provider: ProviderName;
+  model: string;
+  outcome: AttemptOutcome;
+  latencyMs: number;
+  statusCode?: number;
+  detail?: string;
+};
 export type CascadeOptions = {
   attemptTimeoutMs?: number;
   totalDeadlineMs?: number;
@@ -35,15 +42,17 @@ type ProviderResponse = {
   };
 };
 
+type ProviderHttpError = Error & { statusCode?: number; detail?: string };
+
 const DEFAULT_ATTEMPT_TIMEOUT_MS = 3500;
 const DEFAULT_TOTAL_DEADLINE_MS = 50000;
 
 const MODEL_REGISTRY: Readonly<Record<ProviderName, readonly string[]>> = {
   gemini: [
     "gemini-2.5-flash-lite",
-    "gemini-3.1-flash-lite",
     "gemini-3.5-flash-lite",
     "gemini-3.6-flash",
+    "gemini-3.1-flash-lite",
   ],
   huggingface: [
     "google/gemma-2-2b-it",
@@ -100,12 +109,24 @@ function isProviderResponse(value: unknown): value is ProviderResponse {
   return response.choices === undefined || Array.isArray(response.choices);
 }
 
+function sanitizeDetail(value: string): string {
+  return value.replace(/\s+/g, " ").trim().slice(0, 240);
+}
+
 function classifyFailure(error: unknown): AttemptOutcome {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   if (message.includes("request timed out")) return "timeout";
   if (message.includes("returned empty output")) return "empty";
-  if (/\b(400|401|403|404|409|422)\b/.test(message)) return "rejected";
+  if (/\b(400|401|403|404|409|422|429)\b/.test(message)) return "rejected";
   return "transport";
+}
+
+function errorMetadata(error: unknown): Pick<AttemptResult, "statusCode" | "detail"> {
+  const candidate = error as ProviderHttpError;
+  return {
+    statusCode: candidate?.statusCode,
+    detail: candidate?.detail,
+  };
 }
 
 export function configuredProviders(): Record<ProviderName, boolean> {
@@ -168,7 +189,12 @@ export async function callProvider(
       signal: controller.signal,
     });
     const body = await response.text();
-    if (!response.ok) throw new Error(`${provider} ${response.status}: ${body.slice(0, 300)}`);
+    if (!response.ok) {
+      const error = new Error(`${provider} ${response.status}: ${sanitizeDetail(body)}`) as ProviderHttpError;
+      error.statusCode = response.status;
+      error.detail = sanitizeDetail(body);
+      throw error;
+    }
 
     const parsed: unknown = JSON.parse(body);
     if (!isProviderResponse(parsed)) throw new Error(`${provider} returned an invalid response`);
@@ -211,11 +237,13 @@ export async function runProviderCascade(
     const models = getConfiguredModels(provider).slice(0, maxModelsPerProvider);
     for (const model of models) {
       const elapsed = performance.now() - started;
-      if (elapsed >= totalDeadlineMs || elapsed + attemptTimeoutMs > totalDeadlineMs) break outer;
+      if (elapsed >= totalDeadlineMs) break outer;
+      const remaining = totalDeadlineMs - elapsed;
+      const timeoutForAttempt = Math.min(attemptTimeoutMs, Math.max(1, Math.floor(remaining)));
 
       const attemptStarted = performance.now();
       try {
-        const result = await callProvider(provider, model, messages, maxTokens, attemptTimeoutMs);
+        const result = await callProvider(provider, model, messages, maxTokens, timeoutForAttempt);
         attempts.push({ provider, model, outcome: "success", latencyMs: result.latencyMs });
         return { result, attempts, exhausted: false };
       } catch (error) {
@@ -224,6 +252,7 @@ export async function runProviderCascade(
           model,
           outcome: classifyFailure(error),
           latencyMs: Math.round(performance.now() - attemptStarted),
+          ...errorMetadata(error),
         });
       }
     }
