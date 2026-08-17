@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import benchmarkCases from "@/benchmarks/routing-bench-v1.json";
 import { db, databaseConfigured } from "@/lib/db";
 import { average, p95, rate } from "@/lib/metrics";
-import { AttemptResult } from "@/lib/providers";
+import { AttemptResult, runProviderCascade } from "@/lib/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,12 +41,7 @@ type BenchmarkResult = {
 };
 
 function normalize(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/```(?:json|sql|python)?/g, " ")
-    .replace(/[^a-z0-9$%_.<>:=/-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return text.toLowerCase().replace(/```(?:json|sql|python)?/g, " ").replace(/[^a-z0-9$%_.<>:=/-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function tokenSet(text: string): Set<string> {
@@ -62,10 +57,7 @@ function scoreByCategory(item: BenchmarkCase, output: string): BenchmarkResult["
   const expected = normalize(item.expected_behavior);
 
   if (item.category === "reasoning") {
-    const signals = expected
-      .split(/(?:,| with | that | and |;)/)
-      .map(value => value.trim())
-      .filter(value => value.length >= 2);
+    const signals = expected.split(/(?:,| with | that | and |;)/).map(value => value.trim()).filter(value => value.length >= 2);
     const meaningful = signals.slice(0, 4);
     const matched = meaningful.filter(signal => text.includes(signal)).length;
     const answerNumbers = (text.match(/\$?\d+(?:\.\d+)?%?/g) ?? []).length;
@@ -74,7 +66,8 @@ function scoreByCategory(item: BenchmarkCase, output: string): BenchmarkResult["
   }
 
   if (item.category === "structured_output") {
-    const looksJson = (output.trim().startsWith("{") && output.trim().endsWith("}")) || (output.trim().startsWith("[") && output.trim().endsWith("]"));
+    const trimmed = output.trim();
+    const looksJson = (trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"));
     const forbiddenMarkdown = output.includes("```");
     const expectedSignals = expected.split(/\s+/).filter(token => token.length > 2).slice(0, 12);
     const matched = expectedSignals.filter(signal => text.includes(signal)).length;
@@ -83,10 +76,7 @@ function scoreByCategory(item: BenchmarkCase, output: string): BenchmarkResult["
   }
 
   if (item.category === "tool_calling") {
-    const expectedSignals = expected
-      .split(/(?: and |,|\.)/)
-      .map(value => value.trim())
-      .filter(Boolean);
+    const expectedSignals = expected.split(/(?: and |,|\.)/).map(value => value.trim()).filter(Boolean);
     const matched = expectedSignals.filter(signal => text.includes(signal)).length;
     const asksConfirmation = /explicit confirmation|ask for explicit confirmation|do not call/.test(expected);
     const safeAction = /confirm|authorization|authorized|do not|don't|should not|ask/.test(text);
@@ -102,11 +92,7 @@ function scoreByCategory(item: BenchmarkCase, output: string): BenchmarkResult["
   }
 
   if (item.category === "agent_planning" || item.category === "reliability" || item.category === "safety" || item.category === "regression") {
-    const clauses = expected
-      .split(/(?:;|,| and )/)
-      .map(value => value.trim())
-      .filter(value => value.length >= 4)
-      .slice(0, 6);
+    const clauses = expected.split(/(?:;|,| and )/).map(value => value.trim()).filter(value => value.length >= 4).slice(0, 6);
     const matched = clauses.filter(clause => {
       const clauseTokens = clause.split(" ").filter(token => token.length > 3);
       const hitCount = clauseTokens.filter(token => text.includes(token)).length;
@@ -143,6 +129,7 @@ function scoreByCategory(item: BenchmarkCase, output: string): BenchmarkResult["
 async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length);
   let nextIndex = 0;
+
   async function runner() {
     while (true) {
       const index = nextIndex++;
@@ -150,6 +137,7 @@ async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, work
       results[index] = await worker(items[index]);
     }
   }
+
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => runner()));
   return results;
 }
@@ -183,7 +171,7 @@ export async function POST() {
         latencyMs: cascade.result.latencyMs,
         provider: cascade.result.provider,
         model: cascade.result.model,
-        fallbacks: cascade.attempts.filter(attempt => attempt.outcome !== "success").length,
+        fallbacks: cascade.attempts.filter((attempt: AttemptResult) => attempt.outcome !== "success").length,
         attempts: cascade.attempts,
         output: cascade.result.output,
         evaluation,
@@ -224,16 +212,22 @@ export async function POST() {
         failed: failed.length,
         averageQuality: Number((average(results.map(result => result.quality)) ?? 0).toFixed(3)),
         passedQuality: Number((average(passed.map(result => result.quality)) ?? 0).toFixed(3)),
-        p95LatencyMs: p95(results.map(result => result.latencyMs ?? 0)),
+        p95LatencyMs: p95(passed.map(result => result.latencyMs ?? 0)),
         fallbackRate: Number((rate(results.filter(result => result.fallbacks > 0).length, results.length) ?? 0).toFixed(3)),
         persisted,
       },
       providerMix,
-      byCategory: Object.fromEntries([...new Set(results.map(result => result.category))].map(category => {
-        const categoryResults = results.filter(result => result.category === category);
-        return [category, { cases: categoryResults.length, passed: categoryResults.filter(result => result.status === "passed").length, quality: Number((average(categoryResults.map(result => result.quality)) ?? 0).toFixed(3)) }];
-      })),
-      failures: failed.slice(0, 10).map(result => ({ id: result.id, category: result.category, attempts: result.attempts, evaluation: result.evaluation })),
+      byCategory: Object.fromEntries(
+        [...new Set(results.map(result => result.category))].map(category => {
+          const categoryResults = results.filter(result => result.category === category);
+          return [category, {
+            cases: categoryResults.length,
+            passed: categoryResults.filter(result => result.status === "passed").length,
+            quality: Number((average(categoryResults.map(result => result.quality)) ?? 0).toFixed(3)),
+          }];
+        }),
+      ),
+      failures: failed.slice(0, 10).map(result => ({ id: result.id, category: result.category, attempts: result.attempts })),
     });
   } catch (error) {
     console.error("Benchmark run failed", error);
