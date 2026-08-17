@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import benchmarkCases from "@/benchmarks/routing-bench-v1.json";
 import { db, databaseConfigured } from "@/lib/db";
-import { deterministicGrade, runProviderCascade } from "@/lib/providers";
+import { average, p95, rate } from "@/lib/metrics";
+import { AttemptResult, deterministicGrade, runProviderCascade } from "@/lib/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,23 +13,48 @@ const BENCHMARK_CASE_DEADLINE_MS = 5000;
 const BENCHMARK_CONCURRENCY = 10;
 const BENCHMARK_MAX_MODELS_PER_PROVIDER = 1;
 
-function scoreBenchmark(task: string, expected: string, output: string) {
-  const expectedWords = new Set(expected.toLowerCase().split(/[^a-z0-9$]+/).filter((w) => w.length > 2));
-  const outputWords = new Set(output.toLowerCase().split(/[^a-z0-9$]+/).filter((w) => w.length > 2));
+type BenchmarkCase = {
+  id: string;
+  category: string;
+  difficulty: string;
+  task: string;
+  expected_behavior: string;
+};
+
+type BenchmarkResult = {
+  id: string;
+  category: string;
+  status: "passed" | "failed";
+  quality: number;
+  latencyMs: number | null;
+  provider: string | null;
+  model: string | null;
+  fallbacks: number;
+  attempts: AttemptResult[];
+  output?: string;
+};
+
+function scoreBenchmark(task: string, expected: string, output: string): number {
+  const expectedWords = new Set(expected.toLowerCase().split(/[^a-z0-9$]+/).filter(word => word.length > 2));
+  const outputWords = new Set(output.toLowerCase().split(/[^a-z0-9$]+/).filter(word => word.length > 2));
   let overlap = 0;
-  for (const word of expectedWords) if (outputWords.has(word)) overlap++;
+  for (const word of expectedWords) if (outputWords.has(word)) overlap += 1;
   const overlapScore = expectedWords.size ? overlap / expectedWords.size : 0;
   const rubric = deterministicGrade(task, output);
   return Number((0.6 * overlapScore + 0.4 * rubric.quality).toFixed(3));
 }
 
-async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>) {
-  const results: R[] = [];
-  let next = 0;
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
 
   async function runner() {
     while (true) {
-      const index = next++;
+      const index = nextIndex++;
       if (index >= items.length) return;
       results[index] = await worker(items[index]);
     }
@@ -40,26 +66,16 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item
 
 export async function POST() {
   try {
-    const cases = benchmarkCases as Array<{
-      id: string;
-      category: string;
-      difficulty: string;
-      task: string;
-      expected_behavior: string;
-    }>;
-
+    const cases = benchmarkCases as BenchmarkCase[];
     if (cases.length !== 50) {
       return NextResponse.json({ error: "Benchmark suite must contain exactly 50 cases." }, { status: 500 });
     }
 
     const started = performance.now();
-    const results = await mapWithConcurrency(cases, BENCHMARK_CONCURRENCY, async (item) => {
+    const results = await mapWithConcurrency(cases, BENCHMARK_CONCURRENCY, async item => {
       const cascade = await runProviderCascade(
         [
-          {
-            role: "system",
-            content: "You are being evaluated on a fixed production benchmark. Follow the task exactly. Be concise and do not invent facts.",
-          },
+          { role: "system", content: "You are being evaluated on a fixed production benchmark. Follow the task exactly. Be concise and do not invent facts." },
           { role: "user", content: item.task },
         ],
         120,
@@ -81,7 +97,7 @@ export async function POST() {
           model: null,
           fallbacks: cascade.attempts.length,
           attempts: cascade.attempts,
-        };
+        } satisfies BenchmarkResult;
       }
 
       const quality = scoreBenchmark(item.task, item.expected_behavior, cascade.result.output);
@@ -93,55 +109,47 @@ export async function POST() {
         latencyMs: cascade.result.latencyMs,
         provider: cascade.result.provider,
         model: cascade.result.model,
-        fallbacks: cascade.attempts.filter((attempt) => attempt.outcome !== "success").length,
+        fallbacks: cascade.attempts.filter(attempt => attempt.outcome !== "success").length,
         attempts: cascade.attempts,
         output: cascade.result.output,
-      };
+      } satisfies BenchmarkResult;
     });
 
     let persisted = 0;
     if (databaseConfigured()) {
-      for (const result of results) {
-        try {
-          await db.evaluationRun.create({
-            data: {
-              externalId: `bench_${Date.now()}_${result.id}`,
-              task: result.id,
+      try {
+        const data = results.map(result => ({
+          externalId: `bench_${Date.now()}_${result.id}`,
+          task: result.id,
+          status: result.status,
+          selectedModel: result.model ?? "unresolved",
+          reason: `50-case benchmark · ${result.category}`,
+          quality: result.quality,
+          latencyMs: result.latencyMs ?? 0,
+          cost: 0,
+          reliability: result.status === "passed" ? 1 : 0,
+          candidatesJson: result.attempts,
+          traceJson: [
+            { step: "Benchmark case", status: result.status, detail: result.id },
+            {
+              step: "Provider cascade",
               status: result.status,
-              selectedModel: result.model ?? "unresolved",
-              reason: `50-case benchmark · ${result.category}`,
-              quality: result.quality,
-              latencyMs: result.latencyMs ?? 0,
-              cost: 0,
-              reliability: result.status === "passed" ? 1 : 0,
-              candidatesJson: result.attempts,
-              traceJson: [
-                { step: "Benchmark case", status: result.status, detail: result.id },
-                {
-                  step: "Provider cascade",
-                  status: result.status,
-                  detail: result.model ? `${result.provider} / ${result.model}` : "No candidate succeeded",
-                },
-              ],
+              detail: result.model ? `${result.provider} / ${result.model}` : "No candidate succeeded",
             },
-          });
-          persisted++;
-        } catch {
-          // Evidence persistence must not invalidate the benchmark result.
-        }
+          ],
+        }));
+        persisted = (await db.evaluationRun.createMany({ data })).count;
+      } catch (error) {
+        console.error("Benchmark persistence failed", error);
       }
     }
 
-    const passed = results.filter((result) => result.status === "passed");
-    const failed = results.filter((result) => result.status !== "passed");
-    const latencies = passed.map((result) => result.latencyMs ?? 0).sort((a, b) => a - b);
-    const p95 = latencies.length ? latencies[Math.min(latencies.length - 1, Math.ceil(latencies.length * 0.95) - 1)] : null;
-    const averageQuality = passed.length ? passed.reduce((sum, result) => sum + result.quality, 0) / passed.length : 0;
-    const fallbackRate = results.length ? results.filter((result) => result.fallbacks > 0).length / results.length : 0;
+    const passed = results.filter(result => result.status === "passed");
+    const failed = results.filter(result => result.status !== "passed");
     const providerMix = Object.fromEntries(
-      [...new Set(results.map((result) => result.provider).filter(Boolean))].map((provider) => [
+      [...new Set(results.map(result => result.provider).filter(Boolean))].map(provider => [
         provider,
-        results.filter((result) => result.provider === provider).length,
+        results.filter(result => result.provider === provider).length,
       ]),
     );
 
@@ -151,28 +159,23 @@ export async function POST() {
       summary: {
         passed: passed.length,
         failed: failed.length,
-        averageQuality: Number(averageQuality.toFixed(3)),
-        p95LatencyMs: p95,
-        fallbackRate: Number(fallbackRate.toFixed(3)),
+        averageQuality: Number((average(passed.map(result => result.quality)) ?? 0).toFixed(3)),
+        p95LatencyMs: p95(passed.map(result => result.latencyMs ?? 0)),
+        fallbackRate: Number((rate(results.filter(result => result.fallbacks > 0).length, results.length) ?? 0).toFixed(3)),
         persisted,
       },
       providerMix,
       byCategory: Object.fromEntries(
-        [...new Set(results.map((result) => result.category))].map((category) => {
-          const categoryResults = results.filter((result) => result.category === category);
-          return [
-            category,
-            {
-              cases: categoryResults.length,
-              passed: categoryResults.filter((result) => result.status === "passed").length,
-              quality: Number(
-                (categoryResults.reduce((sum, result) => sum + result.quality, 0) / categoryResults.length).toFixed(3),
-              ),
-            },
-          ];
+        [...new Set(results.map(result => result.category))].map(category => {
+          const categoryResults = results.filter(result => result.category === category);
+          return [category, {
+            cases: categoryResults.length,
+            passed: categoryResults.filter(result => result.status === "passed").length,
+            quality: Number((average(categoryResults.map(result => result.quality)) ?? 0).toFixed(3)),
+          }];
         }),
       ),
-      failures: failed.slice(0, 10).map((result) => ({ id: result.id, category: result.category, attempts: result.attempts })),
+      failures: failed.slice(0, 10).map(result => ({ id: result.id, category: result.category, attempts: result.attempts })),
     });
   } catch (error) {
     console.error("Benchmark run failed", error);

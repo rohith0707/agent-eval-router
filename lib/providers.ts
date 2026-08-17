@@ -2,14 +2,38 @@ import { getNvidiaApiKey } from "@/lib/config";
 
 export type ProviderName = "gemini" | "huggingface" | "nvidia" | "openrouter";
 export type Message = { role: "system" | "user"; content: string };
-export type ProviderResult = { provider: ProviderName; model: string; output: string; latencyMs: number; inputTokens: number; outputTokens: number; totalTokens: number };
-export type AttemptResult = { provider: ProviderName; model: string; outcome: "success" | "timeout" | "rejected" | "empty" | "transport"; latencyMs: number };
-export type CascadeOptions = { attemptTimeoutMs?: number; totalDeadlineMs?: number; maxModelsPerProvider?: number };
+export type ProviderResult = {
+  provider: ProviderName;
+  model: string;
+  output: string;
+  latencyMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+};
+export type AttemptOutcome = "success" | "timeout" | "rejected" | "empty" | "transport";
+export type AttemptResult = { provider: ProviderName; model: string; outcome: AttemptOutcome; latencyMs: number };
+export type CascadeOptions = {
+  attemptTimeoutMs?: number;
+  totalDeadlineMs?: number;
+  maxModelsPerProvider?: number;
+};
 
-const DEFAULT_ATTEMPT_TIMEOUT_MS = Number(process.env.PROVIDER_ATTEMPT_TIMEOUT_MS ?? 3500);
-const DEFAULT_TOTAL_DEADLINE_MS = Number(process.env.PROVIDER_TOTAL_DEADLINE_MS ?? 50000);
+type ProviderResponse = {
+  choices?: Array<{ message?: { content?: string | null } }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    input_tokens?: number;
+    output_tokens?: number;
+  };
+};
 
-const MODEL_REGISTRY: Record<ProviderName, string[]> = {
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 3500;
+const DEFAULT_TOTAL_DEADLINE_MS = 50000;
+
+const MODEL_REGISTRY: Readonly<Record<ProviderName, readonly string[]>> = {
   gemini: [
     "gemini-2.5-flash-lite",
     "gemini-3.1-flash-lite",
@@ -29,57 +53,73 @@ const MODEL_REGISTRY: Record<ProviderName, string[]> = {
   openrouter: ["openrouter/free"],
 };
 
+const PROVIDER_ORDER: readonly ProviderName[] = ["gemini", "huggingface", "nvidia", "openrouter"];
+
+const ENDPOINTS: Readonly<Record<ProviderName, string>> = {
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+  huggingface: "https://router.huggingface.co/v1/chat/completions",
+  nvidia: "https://integrate.api.nvidia.com/v1/chat/completions",
+  openrouter: "https://openrouter.ai/api/v1/chat/completions",
+};
+
+function envPositiveInt(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
 function getCredentials(provider: ProviderName): string | undefined {
   switch (provider) {
-    case "gemini": return process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
-    case "huggingface": return process.env.HF_TOKEN ?? process.env.HUGGINGFACE_API_KEY;
-    case "nvidia": return getNvidiaApiKey();
-    case "openrouter": return process.env.OPENROUTER_API_KEY;
+    case "gemini":
+      return process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+    case "huggingface":
+      return process.env.HF_TOKEN ?? process.env.HUGGINGFACE_API_KEY;
+    case "nvidia":
+      return getNvidiaApiKey();
+    case "openrouter":
+      return process.env.OPENROUTER_API_KEY;
   }
 }
 
-function getConfiguredModels(provider: ProviderName): string[] {
-  const envName = `${provider.toUpperCase()}_MODELS`;
-  const override = process.env[envName];
-  if (override) return override.split(",").map(v => v.trim()).filter(Boolean);
-  return MODEL_REGISTRY[provider];
+function getConfiguredModels(provider: ProviderName): readonly string[] {
+  const override = process.env[`${provider.toUpperCase()}_MODELS`];
+  if (!override) return MODEL_REGISTRY[provider];
+  const models = override.split(",").map(value => value.trim()).filter(Boolean);
+  return models.length ? models : MODEL_REGISTRY[provider];
+}
+
+function getEndpoint(provider: ProviderName): string {
+  return ENDPOINTS[provider];
+}
+
+function isProviderResponse(value: unknown): value is ProviderResponse {
+  if (!value || typeof value !== "object") return false;
+  const response = value as ProviderResponse;
+  return response.choices === undefined || Array.isArray(response.choices);
+}
+
+function classifyFailure(error: unknown): AttemptOutcome {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  if (message.includes("request timed out")) return "timeout";
+  if (message.includes("returned empty output")) return "empty";
+  if (/\b(400|401|403|404|409|422)\b/.test(message)) return "rejected";
+  return "transport";
 }
 
 export function configuredProviders(): Record<ProviderName, boolean> {
-  return {
-    gemini: Boolean(getCredentials("gemini")),
-    huggingface: Boolean(getCredentials("huggingface")),
-    nvidia: Boolean(getCredentials("nvidia")),
-    openrouter: Boolean(getCredentials("openrouter")),
-  };
+  return Object.fromEntries(
+    PROVIDER_ORDER.map(provider => [provider, Boolean(getCredentials(provider))]),
+  ) as Record<ProviderName, boolean>;
 }
 
 export function providerOrder(): ProviderName[] {
   const configured = configuredProviders();
-  return (["gemini", "huggingface", "nvidia", "openrouter"] as ProviderName[]).filter(p => configured[p]);
+  return PROVIDER_ORDER.filter(provider => configured[provider]);
 }
 
-export function modelRegistry() {
+export function modelRegistry(): Record<ProviderName, string[]> {
   return Object.fromEntries(
-    (Object.keys(MODEL_REGISTRY) as ProviderName[]).map(provider => [provider, getConfiguredModels(provider)])
+    PROVIDER_ORDER.map(provider => [provider, [...getConfiguredModels(provider)]]),
   ) as Record<ProviderName, string[]>;
-}
-
-function getEndpoint(provider: ProviderName): string {
-  switch (provider) {
-    case "gemini": return "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    case "huggingface": return "https://router.huggingface.co/v1/chat/completions";
-    case "nvidia": return "https://integrate.api.nvidia.com/v1/chat/completions";
-    case "openrouter": return "https://openrouter.ai/api/v1/chat/completions";
-  }
-}
-
-function classifyFailure(error: unknown): AttemptResult["outcome"] {
-  const message = error instanceof Error ? error.message.toLowerCase() : "";
-  if (message.includes("timed out")) return "timeout";
-  if (message.includes("returned empty")) return "empty";
-  if (/\b(400|401|403|404|409|422)\b/.test(message)) return "rejected";
-  return "transport";
 }
 
 export async function callProvider(
@@ -87,22 +127,31 @@ export async function callProvider(
   model: string,
   messages: Message[],
   maxTokens = 100,
-  attemptTimeoutMs = DEFAULT_ATTEMPT_TIMEOUT_MS,
+  attemptTimeoutMs = envPositiveInt("PROVIDER_ATTEMPT_TIMEOUT_MS", DEFAULT_ATTEMPT_TIMEOUT_MS),
 ): Promise<ProviderResult> {
   const key = getCredentials(provider);
   if (!key) throw new Error(`${provider} credentials are not configured`);
+
   const started = performance.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), attemptTimeoutMs);
 
   try {
-    const headers: Record<string, string> = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    };
     if (provider === "openrouter") {
       headers["HTTP-Referer"] = process.env.OPENROUTER_SITE_URL ?? "https://agent-eval-router.vercel.app";
       headers["X-Title"] = process.env.OPENROUTER_APP_NAME ?? "Agent Eval Router";
     }
 
-    const requestBody: Record<string, unknown> = { model, messages, max_tokens: maxTokens, stream: false };
+    const requestBody: Record<string, unknown> = {
+      model,
+      messages,
+      max_tokens: maxTokens,
+      stream: false,
+    };
     if (provider !== "gemini") {
       requestBody.temperature = 0.1;
       requestBody.top_p = 0.7;
@@ -118,12 +167,13 @@ export async function callProvider(
     const body = await response.text();
     if (!response.ok) throw new Error(`${provider} ${response.status}: ${body.slice(0, 300)}`);
 
-    let json: any;
-    try { json = JSON.parse(body); } catch { throw new Error(`${provider} returned non-JSON`); }
-    const usage = json.usage ?? {};
-    const output = json.choices?.[0]?.message?.content ?? "";
-    if (!output.trim()) throw new Error(`${provider} returned empty output`);
+    const parsed: unknown = JSON.parse(body);
+    if (!isProviderResponse(parsed)) throw new Error(`${provider} returned an invalid response`);
 
+    const output = parsed.choices?.[0]?.message?.content?.trim() ?? "";
+    if (!output) throw new Error(`${provider} returned empty output`);
+
+    const usage = parsed.usage ?? {};
     return {
       provider,
       model,
@@ -134,31 +184,44 @@ export async function callProvider(
       totalTokens: Number(usage.total_tokens ?? 0),
     };
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw new Error(`${provider} request timed out`);
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`${provider} request timed out`);
+    }
     throw error;
   } finally {
     clearTimeout(timer);
   }
 }
 
-export async function runProviderCascade(messages: Message[], maxTokens = 100, options: CascadeOptions = {}) {
+export async function runProviderCascade(
+  messages: Message[],
+  maxTokens = 100,
+  options: CascadeOptions = {},
+) {
   const started = performance.now();
   const attempts: AttemptResult[] = [];
-  const attemptTimeoutMs = options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
-  const totalDeadlineMs = options.totalDeadlineMs ?? DEFAULT_TOTAL_DEADLINE_MS;
+  const attemptTimeoutMs = options.attemptTimeoutMs ?? envPositiveInt("PROVIDER_ATTEMPT_TIMEOUT_MS", DEFAULT_ATTEMPT_TIMEOUT_MS);
+  const totalDeadlineMs = options.totalDeadlineMs ?? envPositiveInt("PROVIDER_TOTAL_DEADLINE_MS", DEFAULT_TOTAL_DEADLINE_MS);
   const maxModelsPerProvider = options.maxModelsPerProvider ?? Number.POSITIVE_INFINITY;
 
-  for (const provider of providerOrder()) {
+  outer: for (const provider of providerOrder()) {
     const models = getConfiguredModels(provider).slice(0, maxModelsPerProvider);
     for (const model of models) {
-      if (performance.now() - started + attemptTimeoutMs > totalDeadlineMs) break;
+      const elapsed = performance.now() - started;
+      if (elapsed >= totalDeadlineMs || elapsed + attemptTimeoutMs > totalDeadlineMs) break outer;
+
       const attemptStarted = performance.now();
       try {
         const result = await callProvider(provider, model, messages, maxTokens, attemptTimeoutMs);
         attempts.push({ provider, model, outcome: "success", latencyMs: result.latencyMs });
         return { result, attempts, exhausted: false };
       } catch (error) {
-        attempts.push({ provider, model, outcome: classifyFailure(error), latencyMs: Math.round(performance.now() - attemptStarted) });
+        attempts.push({
+          provider,
+          model,
+          outcome: classifyFailure(error),
+          latencyMs: Math.round(performance.now() - attemptStarted),
+        });
       }
     }
   }
