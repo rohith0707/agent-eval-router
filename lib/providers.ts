@@ -1,4 +1,9 @@
-import { getNvidiaApiKey } from "@/lib/config";
+import {
+  getGeminiApiKey,
+  getHuggingFaceToken,
+  getNvidiaApiKey,
+  getOpenRouterApiKey,
+} from "@/lib/config";
 
 export type ProviderName = "gemini" | "huggingface" | "nvidia" | "openrouter";
 export type Message = { role: "system" | "user"; content: string };
@@ -70,13 +75,13 @@ function envPositiveInt(name: string, fallback: number): number {
 function getCredentials(provider: ProviderName): string | undefined {
   switch (provider) {
     case "gemini":
-      return process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+      return getGeminiApiKey();
     case "huggingface":
-      return process.env.HF_TOKEN ?? process.env.HUGGINGFACE_API_KEY;
+      return getHuggingFaceToken();
     case "nvidia":
       return getNvidiaApiKey();
     case "openrouter":
-      return process.env.OPENROUTER_API_KEY;
+      return getOpenRouterApiKey();
   }
 }
 
@@ -87,9 +92,7 @@ function getConfiguredModels(provider: ProviderName): readonly string[] {
   return models.length ? models : MODEL_REGISTRY[provider];
 }
 
-function getEndpoint(provider: ProviderName): string {
-  return ENDPOINTS[provider];
-}
+const getEndpoint = (provider: ProviderName): string => ENDPOINTS[provider];
 
 function isProviderResponse(value: unknown): value is ProviderResponse {
   if (!value || typeof value !== "object") return false;
