@@ -55,9 +55,9 @@ const MODEL_REGISTRY: Readonly<Record<ProviderName, readonly string[]>> = {
     "gemini-3.1-flash-lite",
   ],
   huggingface: [
-    "google/gemma-2-2b-it",
-    "Qwen/Qwen3-4B-Thinking-2507",
-    "Qwen/Qwen2.5-7B-Instruct-1M",
+    "google/gemma-2-2b-it:fastest",
+    "Qwen/Qwen3-4B-Thinking-2507:fastest",
+    "Qwen/Qwen2.5-7B-Instruct-1M:fastest",
   ],
   nvidia: [
     "meta/llama-3.2-1b-instruct",
@@ -110,7 +110,12 @@ function isProviderResponse(value: unknown): value is ProviderResponse {
 }
 
 function sanitizeDetail(value: string): string {
-  return value.replace(/\s+/g, " ").trim().slice(0, 240);
+  return value
+    .replace(/Bearer\s+[^\s,}]+/gi, "Bearer [redacted]")
+    .replace(/sk-[a-zA-Z0-9_-]{8,}/g, "[redacted]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 240);
 }
 
 function classifyFailure(error: unknown): AttemptOutcome {
@@ -164,22 +169,22 @@ export async function callProvider(
     const headers: Record<string, string> = {
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
+      Accept: "application/json",
     };
     if (provider === "openrouter") {
       headers["HTTP-Referer"] = process.env.OPENROUTER_SITE_URL ?? "https://agent-eval-router.vercel.app";
       headers["X-Title"] = process.env.OPENROUTER_APP_NAME ?? "Agent Eval Router";
     }
 
-    const requestBody: Record<string, unknown> = {
+    // Keep the common request body intentionally minimal for cross-provider compatibility.
+    // Current Gemini guidance warns against deprecated sampling parameters, and the
+    // current HF/OpenRouter examples work with model/messages/max_tokens/stream.
+    const requestBody = {
       model,
       messages,
       max_tokens: maxTokens,
       stream: false,
     };
-    if (provider !== "gemini") {
-      requestBody.temperature = 0.1;
-      requestBody.top_p = 0.7;
-    }
 
     const response = await fetch(getEndpoint(provider), {
       method: "POST",
