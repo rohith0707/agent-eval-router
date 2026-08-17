@@ -14,7 +14,9 @@ export type ProviderResult = {
   latencyMs: number;
   inputTokens: number;
   outputTokens: number;
+  reasoningTokens: number;
   totalTokens: number;
+  estimatedCostUsd: number;
 };
 export type AttemptOutcome = "success" | "timeout" | "rejected" | "empty" | "transport";
 export type AttemptResult = {
@@ -24,11 +26,16 @@ export type AttemptResult = {
   latencyMs: number;
   statusCode?: number;
   detail?: string;
+  estimatedCostUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
 };
 export type CascadeOptions = {
   attemptTimeoutMs?: number;
   totalDeadlineMs?: number;
   maxModelsPerProvider?: number;
+  costFirst?: boolean;
 };
 
 type ProviderResponse = {
@@ -39,10 +46,12 @@ type ProviderResponse = {
     total_tokens?: number;
     input_tokens?: number;
     output_tokens?: number;
+    reasoning_tokens?: number;
   };
 };
 
 type ProviderHttpError = Error & { statusCode?: number; detail?: string };
+type ModelMeta = { inputUsdPer1M: number; outputUsdPer1M: number; costTier: number };
 
 const DEFAULT_ATTEMPT_TIMEOUT_MS = 3500;
 const DEFAULT_TOTAL_DEADLINE_MS = 50000;
@@ -50,9 +59,9 @@ const DEFAULT_TOTAL_DEADLINE_MS = 50000;
 const MODEL_REGISTRY: Readonly<Record<ProviderName, readonly string[]>> = {
   gemini: [
     "gemini-2.5-flash-lite",
+    "gemini-3.1-flash-lite",
     "gemini-3.5-flash-lite",
     "gemini-3.6-flash",
-    "gemini-3.1-flash-lite",
   ],
   huggingface: [
     "google/gemma-2-2b-it:fastest",
@@ -64,7 +73,27 @@ const MODEL_REGISTRY: Readonly<Record<ProviderName, readonly string[]>> = {
     "meta/llama-3.2-3b-instruct",
     "meta/llama-3.1-8b-instruct",
   ],
-  openrouter: ["openrouter/free"],
+  openrouter: [
+    "openrouter/free",
+    "deepseek/deepseek-v3.2",
+    "deepseek/deepseek-chat",
+  ],
+};
+
+const MODEL_META: Readonly<Record<string, ModelMeta>> = {
+  "gemini-2.5-flash-lite": { inputUsdPer1M: 0.10, outputUsdPer1M: 0.40, costTier: 1 },
+  "gemini-3.1-flash-lite": { inputUsdPer1M: 0.10, outputUsdPer1M: 0.40, costTier: 1 },
+  "gemini-3.5-flash-lite": { inputUsdPer1M: 0.10, outputUsdPer1M: 0.40, costTier: 1 },
+  "gemini-3.6-flash": { inputUsdPer1M: 0.20, outputUsdPer1M: 0.80, costTier: 2 },
+  "google/gemma-2-2b-it:fastest": { inputUsdPer1M: 0.05, outputUsdPer1M: 0.10, costTier: 1 },
+  "Qwen/Qwen3-4B-Thinking-2507:fastest": { inputUsdPer1M: 0.08, outputUsdPer1M: 0.28, costTier: 2 },
+  "Qwen/Qwen2.5-7B-Instruct-1M:fastest": { inputUsdPer1M: 0.10, outputUsdPer1M: 0.30, costTier: 2 },
+  "meta/llama-3.2-1b-instruct": { inputUsdPer1M: 0.03, outputUsdPer1M: 0.12, costTier: 1 },
+  "meta/llama-3.2-3b-instruct": { inputUsdPer1M: 0.05, outputUsdPer1M: 0.18, costTier: 2 },
+  "meta/llama-3.1-8b-instruct": { inputUsdPer1M: 0.15, outputUsdPer1M: 0.30, costTier: 3 },
+  "openrouter/free": { inputUsdPer1M: 0, outputUsdPer1M: 0, costTier: 0 },
+  "deepseek/deepseek-v3.2": { inputUsdPer1M: 0.2288, outputUsdPer1M: 0.3432, costTier: 2 },
+  "deepseek/deepseek-chat": { inputUsdPer1M: 0.2002, outputUsdPer1M: 0.8001, costTier: 2 },
 };
 
 const PROVIDER_ORDER: readonly ProviderName[] = ["gemini", "huggingface", "nvidia", "openrouter"];
@@ -83,14 +112,10 @@ function envPositiveInt(name: string, fallback: number): number {
 
 function getCredentials(provider: ProviderName): string | undefined {
   switch (provider) {
-    case "gemini":
-      return getGeminiApiKey();
-    case "huggingface":
-      return getHuggingFaceToken();
-    case "nvidia":
-      return getNvidiaApiKey();
-    case "openrouter":
-      return getOpenRouterApiKey();
+    case "gemini": return getGeminiApiKey();
+    case "huggingface": return getHuggingFaceToken();
+    case "nvidia": return getNvidiaApiKey();
+    case "openrouter": return getOpenRouterApiKey();
   }
 }
 
@@ -99,6 +124,14 @@ function getConfiguredModels(provider: ProviderName): readonly string[] {
   if (!override) return MODEL_REGISTRY[provider];
   const models = override.split(",").map(value => value.trim()).filter(Boolean);
   return models.length ? models : MODEL_REGISTRY[provider];
+}
+
+function modelMeta(model: string): ModelMeta {
+  return MODEL_META[model] ?? { inputUsdPer1M: 0, outputUsdPer1M: 0, costTier: 99 };
+}
+
+function sortModelsByCost(models: readonly string[]): string[] {
+  return [...models].sort((a, b) => modelMeta(a).costTier - modelMeta(b).costTier || a.localeCompare(b));
 }
 
 const getEndpoint = (provider: ProviderName): string => ENDPOINTS[provider];
@@ -110,34 +143,29 @@ function isProviderResponse(value: unknown): value is ProviderResponse {
 }
 
 function sanitizeDetail(value: string): string {
-  return value
-    .replace(/Bearer\s+[^\s,}]+/gi, "Bearer [redacted]")
-    .replace(/sk-[a-zA-Z0-9_-]{8,}/g, "[redacted]")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 240);
+  return value.replace(/\s+/g, " ").trim().slice(0, 240);
 }
 
 function classifyFailure(error: unknown): AttemptOutcome {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   if (message.includes("request timed out")) return "timeout";
   if (message.includes("returned empty output")) return "empty";
-  if (/\b(400|401|403|404|409|422|429)\b/.test(message)) return "rejected";
+  if (/\b(400|401|403|404|409|422|429|500|502|503|504)\b/.test(message)) return "rejected";
   return "transport";
 }
 
 function errorMetadata(error: unknown): Pick<AttemptResult, "statusCode" | "detail"> {
   const candidate = error as ProviderHttpError;
-  return {
-    statusCode: candidate?.statusCode,
-    detail: candidate?.detail,
-  };
+  return { statusCode: candidate?.statusCode, detail: candidate?.detail };
+}
+
+function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+  const meta = modelMeta(model);
+  return Number((((inputTokens / 1_000_000) * meta.inputUsdPer1M) + ((outputTokens / 1_000_000) * meta.outputUsdPer1M)).toFixed(8));
 }
 
 export function configuredProviders(): Record<ProviderName, boolean> {
-  return Object.fromEntries(
-    PROVIDER_ORDER.map(provider => [provider, Boolean(getCredentials(provider))]),
-  ) as Record<ProviderName, boolean>;
+  return Object.fromEntries(PROVIDER_ORDER.map(provider => [provider, Boolean(getCredentials(provider))])) as Record<ProviderName, boolean>;
 }
 
 export function providerOrder(): ProviderName[] {
@@ -146,9 +174,7 @@ export function providerOrder(): ProviderName[] {
 }
 
 export function modelRegistry(): Record<ProviderName, string[]> {
-  return Object.fromEntries(
-    PROVIDER_ORDER.map(provider => [provider, [...getConfiguredModels(provider)]]),
-  ) as Record<ProviderName, string[]>;
+  return Object.fromEntries(PROVIDER_ORDER.map(provider => [provider, getConfiguredModels(provider).slice().sort((a, b) => modelMeta(a).costTier - modelMeta(b).costTier)])) as Record<ProviderName, string[]>;
 }
 
 export async function callProvider(
@@ -166,26 +192,13 @@ export async function callProvider(
   const timer = setTimeout(() => controller.abort(), attemptTimeoutMs);
 
   try {
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    };
+    const headers: Record<string, string> = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
     if (provider === "openrouter") {
       headers["HTTP-Referer"] = process.env.OPENROUTER_SITE_URL ?? "https://agent-eval-router.vercel.app";
       headers["X-Title"] = process.env.OPENROUTER_APP_NAME ?? "Agent Eval Router";
     }
 
-    // Keep the common request body intentionally minimal for cross-provider compatibility.
-    // Current Gemini guidance warns against deprecated sampling parameters, and the
-    // current HF/OpenRouter examples work with model/messages/max_tokens/stream.
-    const requestBody = {
-      model,
-      messages,
-      max_tokens: maxTokens,
-      stream: false,
-    };
-
+    const requestBody: Record<string, unknown> = { model, messages, max_tokens: maxTokens, stream: false };
     const response = await fetch(getEndpoint(provider), {
       method: "POST",
       headers,
@@ -203,62 +216,67 @@ export async function callProvider(
 
     const parsed: unknown = JSON.parse(body);
     if (!isProviderResponse(parsed)) throw new Error(`${provider} returned an invalid response`);
-
     const output = parsed.choices?.[0]?.message?.content?.trim() ?? "";
     if (!output) throw new Error(`${provider} returned empty output`);
 
     const usage = parsed.usage ?? {};
+    const inputTokens = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0);
+    const outputTokens = Number(usage.completion_tokens ?? usage.output_tokens ?? 0);
+    const reasoningTokens = Number(usage.reasoning_tokens ?? 0);
+    const totalTokens = Number(usage.total_tokens ?? inputTokens + outputTokens + reasoningTokens);
+
     return {
       provider,
       model,
       output,
       latencyMs: Math.round(performance.now() - started),
-      inputTokens: Number(usage.prompt_tokens ?? usage.input_tokens ?? 0),
-      outputTokens: Number(usage.completion_tokens ?? usage.output_tokens ?? 0),
-      totalTokens: Number(usage.total_tokens ?? 0),
+      inputTokens,
+      outputTokens,
+      reasoningTokens,
+      totalTokens,
+      estimatedCostUsd: estimateCost(model, inputTokens, outputTokens),
     };
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(`${provider} request timed out`);
-    }
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error(`${provider} request timed out`);
     throw error;
   } finally {
     clearTimeout(timer);
   }
 }
 
-export async function runProviderCascade(
-  messages: Message[],
-  maxTokens = 100,
-  options: CascadeOptions = {},
-) {
+export async function runProviderCascade(messages: Message[], maxTokens = 100, options: CascadeOptions = {}) {
   const started = performance.now();
   const attempts: AttemptResult[] = [];
   const attemptTimeoutMs = options.attemptTimeoutMs ?? envPositiveInt("PROVIDER_ATTEMPT_TIMEOUT_MS", DEFAULT_ATTEMPT_TIMEOUT_MS);
   const totalDeadlineMs = options.totalDeadlineMs ?? envPositiveInt("PROVIDER_TOTAL_DEADLINE_MS", DEFAULT_TOTAL_DEADLINE_MS);
   const maxModelsPerProvider = options.maxModelsPerProvider ?? Number.POSITIVE_INFINITY;
+  const costFirst = options.costFirst ?? true;
 
   outer: for (const provider of providerOrder()) {
-    const models = getConfiguredModels(provider).slice(0, maxModelsPerProvider);
+    const configuredModels = getConfiguredModels(provider);
+    const models = (costFirst ? sortModelsByCost(configuredModels) : [...configuredModels]).slice(0, maxModelsPerProvider);
+
     for (const model of models) {
       const elapsed = performance.now() - started;
       if (elapsed >= totalDeadlineMs) break outer;
       const remaining = totalDeadlineMs - elapsed;
       const timeoutForAttempt = Math.min(attemptTimeoutMs, Math.max(1, Math.floor(remaining)));
-
       const attemptStarted = performance.now();
+
       try {
         const result = await callProvider(provider, model, messages, maxTokens, timeoutForAttempt);
-        attempts.push({ provider, model, outcome: "success", latencyMs: result.latencyMs });
+        attempts.push({ provider, model, outcome: "success", latencyMs: result.latencyMs, estimatedCostUsd: result.estimatedCostUsd, inputTokens: result.inputTokens, outputTokens: result.outputTokens, reasoningTokens: result.reasoningTokens });
         return { result, attempts, exhausted: false };
       } catch (error) {
-        attempts.push({
-          provider,
-          model,
-          outcome: classifyFailure(error),
-          latencyMs: Math.round(performance.now() - attemptStarted),
-          ...errorMetadata(error),
-        });
+        const metadata = errorMetadata(error);
+        const outcome = classifyFailure(error);
+        attempts.push({ provider, model, outcome, latencyMs: Math.round(performance.now() - attemptStarted), ...metadata });
+
+        // Do not waste the remaining budget retrying a provider that explicitly rate-limited or denied access.
+        // Model-specific failures (notably 404) may still try the next configured model for the same provider.
+        if (metadata.statusCode === 429 || metadata.statusCode === 401 || metadata.statusCode === 403 || (metadata.statusCode && metadata.statusCode >= 500)) {
+          continue outer;
+        }
       }
     }
   }
