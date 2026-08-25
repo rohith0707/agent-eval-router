@@ -33,7 +33,7 @@ export type GraderResult = {
   graderVersion: string;
 };
 
-export const BENCHMARK_GRADER_VERSION = "v2.1";
+export const BENCHMARK_GRADER_VERSION = "v2.2";
 
 const STOPWORDS = new Set([
   "the", "a", "an", "and", "or", "with", "for", "from", "into", "that", "this", "then", "than", "only",
@@ -47,6 +47,10 @@ function normalize(text: string): string {
     .replace(/[^a-z0-9$%_.<>:=/-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeReference(text: string): string {
+  return normalize(text).replace(/[.,!?;:]+(?=\s|$)/g, "").trim();
 }
 
 function tokens(text: string): string[] {
@@ -180,9 +184,9 @@ function gradeToolCalling(item: BenchmarkCase, output: string): GraderResult {
 }
 
 function gradeRag(output: string, item: BenchmarkCase): GraderResult {
-  const text = normalize(output);
+  const text = normalizeReference(output);
   const task = normalize(item.task);
-  const expected = normalize(item.expected_behavior);
+  const expected = normalizeReference(item.expected_behavior);
 
   if (expected.length >= 4 && text.includes(expected)) {
     return makeResult(
@@ -191,7 +195,7 @@ function gradeRag(output: string, item: BenchmarkCase): GraderResult {
       "deterministic",
       1,
       1,
-      "Output contains the complete normalized reference answer.",
+      "Output contains the complete normalized reference answer, ignoring terminal punctuation.",
     );
   }
 
