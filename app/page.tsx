@@ -54,72 +54,63 @@ export default function Home() {
 
   return (
     <DashboardShell
-      title="Dashboard"
-      eyebrow="Control Plane"
-      action={
-        <Link href="/live" className="button">
-          Run evaluation
-        </Link>
-      }
+      title="AI Workspace"
+      eyebrow="AI Engineer"
+      action={<Link href="/live" className="button">Open Product AI Lab</Link>}
     >
       {error && <div className="notice">{error}</div>}
 
       <section className="heroCard">
         <div>
-          <p className="eyebrow">Production AI reliability</p>
-          <h2 className="heroTitle">Evaluate models, route by evidence, recover from failures.</h2>
+          <p className="eyebrow">BUILD · EVALUATE · IMPROVE</p>
+          <h2 className="heroTitle">Ship AI workflows that get better when the data says they should.</h2>
           <p className="heroDesc">
-            A model-agnostic control plane for quality, latency, reliability and cost. The benchmark suite is fixed;
-            production results are persisted and inspectable.
+            Test realistic product tasks, compare AI strategies, inspect failures, and keep a reproducible record of what changed and why.
           </p>
         </div>
         <div className="heroActions">
-          <Link href="/live" className="button">Live evaluation</Link>
-          <Link href="/benchmarks" className="button secondary">50-case benchmark</Link>
+          <Link href="/live" className="button">Try a product task</Link>
+          <Link href="/benchmarks" className="button secondary">Run 50-case evaluation</Link>
         </div>
       </section>
 
       <section className="grid4">
-        <Metric label="Average quality" value={summary?.avgQuality == null ? "—" : `${(summary.avgQuality * 100).toFixed(1)}%`} sub="Observed persisted evidence" />
+        <Metric label="Task success" value={summary?.passRate == null ? "—" : `${(summary.passRate * 100).toFixed(1)}%`} sub="Observed persisted runs" />
+        <Metric label="Quality" value={summary?.avgQuality == null ? "—" : `${(summary.avgQuality * 100).toFixed(1)}%`} sub="Evaluated responses" />
         <Metric label="p95 latency" value={summary?.p95LatencyMs == null ? "—" : `${summary.p95LatencyMs}ms`} sub="Completed runs" />
-        <Metric label="Evaluations" value={summary?.count ?? 0} sub="Stored runs" />
-        <Metric label="Pass rate" value={summary?.passRate == null ? "—" : `${(summary.passRate * 100).toFixed(1)}%`} sub="Observed status" />
+        <Metric label="Evaluations" value={summary?.count ?? 0} sub="Stored evidence runs" />
       </section>
 
       <section className="grid2" style={{ marginTop: 18 }}>
         <div className="card">
           <div className="topRow">
             <div>
-              <h2 className="sectionTitle">Benchmark readiness</h2>
-              <p className="sectionSub">Fixed suite used for regression and routing comparisons.</p>
+              <h2 className="sectionTitle">The AI-engineering loop</h2>
+              <p className="sectionSub">The product is the improvement loop, not the model list.</p>
             </div>
-            <Link href="/benchmarks" className="textLink">Open →</Link>
+            <Link href="/live" className="textLink">Try it →</Link>
           </div>
-          <div className="signalGrid">
-            <Signal title="Cases" value="50" />
-            <Signal title="Categories" value="10" />
-            <Signal title="Baselines" value="3" />
-            <Signal title="Evaluation" value="Evidence-first" />
+          <div className="listBlock">
+            <div className="listRow"><div className="listTitle">1 · Understand the task</div><div className="sectionSub">Identify the quality bar, tools, latency target, and risk.</div></div>
+            <div className="listRow"><div className="listTitle">2 · Execute an AI strategy</div><div className="sectionSub">Use the least expensive viable model, or escalate when the task demands deeper reasoning.</div></div>
+            <div className="listRow"><div className="listTitle">3 · Evaluate the outcome</div><div className="sectionSub">Score task-specific correctness, grounding, structure, safety, and reliability.</div></div>
+            <div className="listRow"><div className="listTitle">4 · Learn from failure</div><div className="sectionSub">Turn repeat failures into regression cases and improve the next version.</div></div>
           </div>
         </div>
 
         <div className="card">
           <div className="topRow">
             <div>
-              <h2 className="sectionTitle">Routing policy</h2>
-              <p className="sectionSub">Online serving uses bounded fallback; offline benchmark runs compare candidates.</p>
+              <h2 className="sectionTitle">Product tasks</h2>
+              <p className="sectionSub">The same evaluation system can test different AI capabilities.</p>
             </div>
-            <Link href="/models/performance" className="textLink">Models →</Link>
+            <Link href="/live" className="textLink">Explore →</Link>
           </div>
-          <div className="listBlock">
-            <div className="listRow">
-              <div className="listTitle">Primary objective</div>
-              <div className="sectionSub">Maximize quality subject to latency, cost and reliability constraints.</div>
-            </div>
-            <div className="listRow">
-              <div className="listTitle">Provider order</div>
-              <div className="sectionSub">Gemini → Hugging Face → NVIDIA → OpenRouter.</div>
-            </div>
+          <div className="signalGrid">
+            <Signal title="Investigation" value="Root-cause + evidence" />
+            <Signal title="RAG" value="Grounded answers" />
+            <Signal title="SQL" value="Safe, structured queries" />
+            <Signal title="Agents" value="Tools + planning" />
           </div>
         </div>
       </section>
@@ -129,37 +120,31 @@ export default function Home() {
           <div className="topRow">
             <div>
               <h2 className="sectionTitle">Quality trend</h2>
-              <p className="sectionSub">Latest persisted evaluation runs</p>
+              <p className="sectionSub">Latest persisted AI evaluations</p>
             </div>
             <Link href="/runs" className="textLink">Runs →</Link>
           </div>
           {values.length ? (
             <>
               <div className="trend">
-                {values.map((value, index) => (
-                  <div key={index} className="bar" style={{ height: `${value}px` }} />
-                ))}
+                {values.map((value, index) => <div key={index} className="bar" style={{ height: `${value}px` }} />)}
               </div>
               <div className="axis"><span>Older</span><span>Recent</span></div>
             </>
-          ) : (
-            <div className="empty">No evaluation evidence yet.</div>
-          )}
+          ) : <div className="empty">Run the Product AI Lab to create evidence.</div>}
         </div>
 
         <div className="card">
           <div className="topRow">
             <div>
               <h2 className="sectionTitle">Recent evidence</h2>
-              <p className="sectionSub">No fabricated benchmark numbers.</p>
+              <p className="sectionSub">Every result is traceable to a real run.</p>
             </div>
             <Link href="/runs" className="textLink">All runs →</Link>
           </div>
           {runs.length ? (
             <table className="table">
-              <thead>
-                <tr><th>Run</th><th>Model</th><th>Quality</th><th>Latency</th><th>Status</th></tr>
-              </thead>
+              <thead><tr><th>Run</th><th>Strategy</th><th>Quality</th><th>Latency</th><th>Status</th></tr></thead>
               <tbody>
                 {runs.slice(0, 5).map((run) => (
                   <tr key={run.externalId}>
@@ -172,9 +157,7 @@ export default function Home() {
                 ))}
               </tbody>
             </table>
-          ) : (
-            <div className="empty">Run the benchmark or live evaluation to create evidence.</div>
-          )}
+          ) : <div className="empty">No evaluation evidence yet.</div>}
         </div>
       </section>
     </DashboardShell>
@@ -182,20 +165,9 @@ export default function Home() {
 }
 
 function Metric({ label, value, sub }: { label: string; value: string | number; sub: string }) {
-  return (
-    <div className="card">
-      <div className="metricLabel">{label}</div>
-      <div className="metricValue">{value}</div>
-      <div className="metricDelta">{sub}</div>
-    </div>
-  );
+  return <div className="card"><div className="metricLabel">{label}</div><div className="metricValue">{value}</div><div className="metricDelta">{sub}</div></div>;
 }
 
 function Signal({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="signal">
-      <div className="signalTitle">{title}</div>
-      <div className="signalValue">{value}</div>
-    </div>
-  );
+  return <div className="signal"><div className="signalTitle">{title}</div><div className="signalValue">{value}</div></div>;
 }
