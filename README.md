@@ -1,233 +1,239 @@
-# Agent Eval Router
+# Adaptive AI Agent Evaluation
 
-**Python-first evaluation and routing infrastructure for production LLM and agent systems.**
+**An evaluation-driven AI system for building, testing, and improving LLM and agent workflows.**
 
-> Decide which model or agent should run a task. Measure the outcome. Explain the decision. Turn failures into better evaluations.
+> Give it a real product task. It chooses a viable AI strategy, measures the outcome, explains failures, and turns repeated failures into better tests.
 
-Agent Eval Router is an engineering project focused on the layer between **model capability and product reliability**: routing, evaluation, failure analysis, observability, and cost/latency trade-offs.
+## Why this exists
 
----
-
-## Why this project exists
-
-A model that performs well in a demo can still fail in production because the task is wrong for the model, the context is incomplete, a tool fails, latency exceeds the budget, or cost grows faster than usage.
-
-The project tests a simple product hypothesis:
-
-> **Can adaptive model/agent routing produce a better quality–latency–cost trade-off than blindly sending every task to one model?**
-
-The answer should come from reproducible evaluation data—not a benchmark number written in a README.
-
----
-
-## Product architecture
+Most AI prototypes stop at “the model answered.” Production AI needs a harder loop:
 
 ```text
-                         Evaluation Console
-                              Next.js
-                                 │
-                                 ▼
-                            FastAPI API
-                                 │
-                 ┌───────────────┼────────────────┐
-                 ▼               ▼                ▼
-              Router         Evaluator        Observability
-                 │               │                │
-        ┌────────┼────────┐      │          Trace / Metrics
-        ▼        ▼        ▼      │
-     OpenAI   Anthropic  Local   │
-        │        │        │      │
-        └────────┼────────┘      │
-                 ▼               ▼
-             Agent/Tool      Benchmark Suite
-             Execution             │
-                 │                 │
-                 └────────┬────────┘
-                          ▼
-                 Decision + Evaluation
-                          │
-                          ▼
-                    Run / Report Store
+Product task
+    ↓
+AI strategy
+    ↓
+Model / retrieval / tool execution
+    ↓
+Task-specific evaluation
+    ↓
+Failure analysis
+    ↓
+Routing or prompt improvement
+    ↓
+Regression case
+    ↓
+CI + production
 ```
 
-### Design principle
+This project is built around that loop.
 
-The **Python/FastAPI service is the source of truth for AI execution and evaluation**. The Next.js application is the product interface.
+## Product-engineering focus
 
----
+The project is intentionally positioned as an **AI Engineer** project rather than a model-provider dashboard.
 
-## Repository structure
+It demonstrates:
 
-```text
-backend/
-  app/
-    main.py              # FastAPI entrypoint
-    models.py            # Typed request/response contracts
-    router.py            # Constraint-based routing
-    adapters/            # Model provider adapters
-    evaluation/          # Evaluation and scoring logic
-    benchmark/           # Benchmark execution
-    agents/              # Agent/tool execution
-    observability/       # Tracing and metrics
-  tests/
-  pyproject.toml
+- LLM application development
+- agent workflows and tool use
+- RAG-oriented evaluation
+- structured outputs and text-to-SQL
+- task-aware model selection
+- quality and safety evaluation
+- latency and token/cost measurement
+- provider failure recovery
+- regression testing
+- reproducible evidence for AI decisions
 
-app/                     # Next.js evaluation console
-datasets/                # Versioned evaluation cases
-docs/                    # Architecture and evaluation methodology
-prisma/                  # Persistence schema
-```
-
----
+The provider gateway, fallback logic, and APIM-ready controls are implementation details that make the AI workflow production-safe; they are not the product story.
 
 ## Core workflow
 
 ```text
-Task
-  ↓
-Task characteristics / requirements
-  ↓
-Routing policy
-  ↓
-Candidate filtering
-  ↓
-Model or agent execution
-  ↓
-Evaluation
-  ├── Quality
-  ├── Reliability
-  ├── Latency
-  ├── Cost
-  └── Failure class
-  ↓
-Routing decision + trace
-  ↓
-Persist result
-  ↓
-Feed failures back into evaluation
+User task
+   ↓
+Task characteristics
+   ├─ reasoning
+   ├─ RAG
+   ├─ structured output
+   ├─ SQL
+   ├─ tool use
+   └─ agent planning
+   ↓
+Candidate AI strategies
+   ├─ fast / cheap model
+   ├─ reasoning model
+   ├─ long-context model
+   └─ agentic strategy
+   ↓
+Execution
+   ↓
+Independent evaluation
+   ├─ correctness
+   ├─ groundedness
+   ├─ structure
+   ├─ tool behavior
+   ├─ safety
+   └─ task completion
+   ↓
+Decision + evidence
+   ↓
+Failure → regression case
 ```
 
-The important part is the **feedback loop**: production failures should become evaluation cases, and evaluation should inform routing and system changes.
+## What makes the project useful
 
----
+### 1. Product AI Lab
 
-## What is implemented
+The live workspace lets you test realistic tasks such as:
 
-- Python/FastAPI routing service
-- Typed evaluation contracts with Pydantic
-- Constraint-based routing using quality, latency, and cost budgets
-- Deterministic fallback behavior when no candidate satisfies all constraints
-- Provider-adapter architecture for OpenAI, Anthropic, and local models
-- Benchmark dataset structure for reasoning, RAG, structured output, tool use, and agent planning
-- Evaluation scoring primitives and failure categories
-- Next.js evaluation console
-- PostgreSQL/Prisma persistence foundation
-- Docker and local development configuration
-- CI checks for backend and frontend
+- production incident investigation
+- RAG reliability review
+- safe text-to-SQL
+- agent planning
 
-### Current baseline
+The user does not manually pick a model. The system owns the strategy decision and records the evidence.
 
-The repository currently contains **fixture values for v0.1** so the routing and UI can be exercised deterministically. They are intentionally not presented as live provider measurements.
+### 2. Fixed 50-case evaluation suite
 
----
-
-## Evaluation methodology
-
-Each benchmark case should define:
-
-```json
-{
-  "id": "case-001",
-  "category": "tool_calling",
-  "difficulty": "medium",
-  "task": "...",
-  "expected_behavior": "...",
-  "success_criteria": ["..."],
-  "tools": []
-}
-```
-
-A completed evaluation should capture:
-
-- model / agent selected
-- evaluator scores
-- latency
-- token usage
-- cost
-- reliability outcome
-- failure class
-- trace ID
-- routing rationale
-
-### Baselines that matter
-
-The project is designed to compare:
-
-**Single-model baseline**
-
-vs.
-
-**Adaptive routing**
-
-The meaningful result is not “Model X scored 95%.” It is whether the routing strategy improves the overall product trade-off under explicit constraints.
-
----
-
-## Engineering principles
-
-### 1. Measure before optimizing
-
-Quality is only one dimension. A routing decision that improves quality but doubles cost or breaks latency SLOs may be a worse product decision.
-
-### 2. Prefer deterministic logic where it is sufficient
-
-Not every workflow needs an autonomous agent. The system should make the smallest reliable decision that solves the task.
-
-### 3. Treat evaluation as product infrastructure
-
-Datasets, graders, regression cases, traces, and failure analysis belong beside application code—not in a spreadsheet after deployment.
-
-### 4. Design for failure
-
-Models return invalid outputs. Retrieval can miss context. Tools time out. Providers rate-limit. The system needs validation, retries, fallbacks, budgets, and observability.
-
-### 5. Optimize for user outcomes
-
-The objective is not a better benchmark chart. The objective is a more useful, reliable, and economically viable AI product.
-
----
-
-## Local development
-
-### Python engine
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-# Windows: .venv\Scripts\activate
-
-pip install -e '.[dev]'
-uvicorn app.main:app --reload
-```
-
-API:
+The benchmark covers:
 
 ```text
-GET  /health
-POST /v1/evaluations
+reasoning
+structured output
+tool calling
+RAG
+agent planning
+reliability
+text-to-SQL
+safety / injection
+code generation
+regression
 ```
 
-Example:
+The suite deliberately separates:
 
-```json
-{
-  "task": "Return a structured comparison of two approaches",
-  "quality_threshold": 0.90,
-  "latency_budget_ms": 2500,
-  "cost_budget": 0.03
-}
+```text
+model-quality failure
+        ≠
+infrastructure/provider failure
 ```
+
+so a timeout or rate limit cannot be presented as a bad model score.
+
+### 3. Cost-aware and reliability-aware routing
+
+The runtime prefers inexpensive viable candidates, but it does not treat “cheapest” as “always best.” It considers capability, reliability, latency, and failure state, then falls back when a provider or model is unhealthy.
+
+### 4. Hard-task escalation
+
+Long-horizon work can be escalated to a stronger reasoning path such as **Ox Alpha via OpenRouter**, while ordinary tasks remain on cheaper candidates.
+
+The goal is not to spend the expensive model on every request. The goal is to use it when the task justifies it.
+
+### 5. Evidence for every decision
+
+A run records the signals needed to answer:
+
+> Why did the system choose this model strategy?
+
+Evidence can include:
+
+- selected model/provider
+- fallback attempts
+- latency
+- input/output/reasoning tokens when available
+- estimated cost
+- evaluation result
+- routing rationale
+- execution trace
+- persistence status
+
+## Architecture
+
+```text
+                         Product AI Lab
+                              Next.js
+                                 │
+                                 ▼
+                           AI Application API
+                                 │
+              ┌──────────────────┼──────────────────┐
+              ▼                  ▼                  ▼
+        Task strategy        Evaluation         Evidence
+              │                  │                  │
+              └────────────┬─────┴──────────────────┘
+                           ▼
+                  Model / Agent execution
+                           │
+          ┌────────────────┼────────────────┐
+          ▼                ▼                ▼
+       Gemini            HF/NVIDIA       OpenRouter
+                                             │
+                                    DeepSeek / Ox Alpha
+                           │
+                           ▼
+                  Result + failure class
+                           │
+                           ▼
+                    Neon / PostgreSQL
+```
+
+## AI-engineering evidence
+
+A strong run should answer five questions:
+
+1. What user problem was solved?
+2. Why was a simple single-model call insufficient?
+3. What did the AI system actually do?
+4. How was success measured?
+5. What changed after the failures were analyzed?
+
+That is the standard used for the project's engineering decisions.
+
+## Recommended portfolio result
+
+The most important result is **not** “Model X scored 95%.”
+
+The meaningful comparison is:
+
+```text
+Fixed baseline
+vs
+Cheapest viable strategy
+vs
+Adaptive AI strategy
+```
+
+Compare them on the same cases using:
+
+```text
+Task success
+p95 latency
+Cost / successful task
+Infrastructure availability
+Fallback rate
+```
+
+Only real run data belongs in the README.
+
+## Reliability model
+
+The provider layer distinguishes failures such as:
+
+```text
+401 / 403     credential or permission failure
+404           model/endpoint mismatch
+429           rate limit
+5xx           provider-side failure
+timeout       deadline exceeded
+transport     network/connection failure
+empty         unusable model response
+```
+
+Operational failures are kept separate from model quality.
+
+## Development
 
 ### Frontend
 
@@ -236,90 +242,63 @@ npm install
 npm run dev
 ```
 
-### Environment
+### Verification gate
 
-Keep provider credentials local and out of Git:
+```bash
+npm run typecheck
+npm run validate:production-contract
+npm run validate:benchmark
+npm run build
+
+cd backend
+python -m pytest
+```
+
+No code change should be considered production-ready until the applicable checks pass.
+
+## Configuration
+
+Provider secrets stay server-side and out of source control.
+
+Canonical variables include:
 
 ```text
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-OLLAMA_BASE_URL=
+GEMINI_API_KEY=
+HF_TOKEN=
+NVIDIA_API_KEY=
+OPENROUTER_API_KEY=
 DATABASE_URL=
 ```
 
----
+Legacy deployment aliases are supported by the runtime configuration resolver where required.
 
-## Roadmap
+## What is intentionally not the main story
 
-### v0.1 — Foundation
+This project contains:
 
-- [x] Python-first architecture
-- [x] Explainable constraint-based routing
-- [x] FastAPI API
-- [x] Evaluation contracts
-- [x] Benchmark dataset structure
-- [x] Product console
-- [x] Persistence foundation
-- [x] CI foundation
+- API management controls
+- rate limiting
+- provider fallback
+- model registry
+- persistence
+- deployment infrastructure
 
-### v0.2 — Real evaluations
+These support the AI workflow, but the portfolio narrative is **AI application quality and improvement**, not platform administration.
 
-- [ ] Execute 100+ benchmark cases against real providers
-- [ ] OpenAI adapter in production path
-- [ ] Anthropic adapter in production path
-- [ ] Ollama/local adapter in production path
-- [ ] Token and cost accounting
-- [ ] Semantic / task-specific graders
-- [ ] Failure taxonomy and drill-down
-- [ ] Real run history in the console
+## Target roles
 
-### v0.3 — Production agent infrastructure
+The project is designed to demonstrate capability for roles such as:
 
-- [ ] Tool execution and agent trajectories
-- [ ] OpenTelemetry traces
-- [ ] Retry / timeout / idempotency policies
-- [ ] Historical-performance-aware routing
-- [ ] Adaptive routing
-- [ ] Regression gates in CI
-- [ ] Reproducible benchmark reports
-
----
-
-## What makes this different from a typical LLM demo
-
-This project is intentionally **not** centered on a chat UI or a single prompt chain.
-
-It focuses on the system decisions that become difficult after deployment:
-
-```text
-Model selection
-      +
-Evaluation
-      +
-Failure analysis
-      +
-Latency
-      +
-Cost
-      +
-Reliability
-      +
-Observability
-      ↓
-Production AI behavior
-```
-
----
-
-## Engineering signal
-
-This project is built around the same problems that current product-AI teams emphasize in production agent work: real-world agent execution, evaluation and regression coverage, production traces and failure analysis, model/tool trade-offs, reliability, and connecting technical changes to user outcomes. citeturn748788search0turn748788search1turn748788search2turn748788search6
-
----
+- AI Engineer
+- Generative AI Engineer
+- AI/ML Engineer focused on LLM applications
+- Applied AI Engineer
+- Agentic AI Engineer
+- LLM Application Engineer
 
 ## Author
 
 **Rohith Balsa**  
-AI Engineer focused on production LLM and agentic systems, evaluation, reliability, and AI infrastructure.
+AI Engineer focused on LLM applications, agents, evaluation, reliability, and applied AI systems.
 
-[LinkedIn](https://www.linkedin.com/in/rohithbalsa) · [GitHub](https://github.com/rohith0707)
+[GitHub](https://github.com/rohith0707)
