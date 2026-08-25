@@ -33,7 +33,7 @@ export type GraderResult = {
   graderVersion: string;
 };
 
-export const BENCHMARK_GRADER_VERSION = "v2.3";
+export const BENCHMARK_GRADER_VERSION = "v2.4";
 
 const STOPWORDS = new Set([
   "the", "a", "an", "and", "or", "with", "for", "from", "into", "that", "this", "then", "than", "only",
@@ -224,14 +224,17 @@ function gradeRag(output: string, item: BenchmarkCase): GraderResult {
   const phraseScore = keyPhrases.length ? phraseHits / keyPhrases.length : 0;
   const numericScore = expectedNumbers.length ? numericHits / expectedNumbers.length : 1;
   const quality = 0.5 * Math.max(conceptScore, phraseScore) + 0.3 * numericScore + 0.2 * abstentionScore;
+  const numericMismatch = expectedNumbers.length > 0 && numericHits < expectedNumbers.length;
 
   return makeResult(
     quality,
-    quality >= 0.7,
+    !numericMismatch && quality >= 0.7,
     "semantic_rubric",
     tokenHits + phraseHits + numericHits + abstentionScore,
     conceptTokens.length + keyPhrases.length + expectedNumbers.length + 1,
-    `Grounding=${Math.max(conceptScore, phraseScore).toFixed(2)}, numeric=${numericScore.toFixed(2)}, abstention=${abstentionScore === 1 ? "correct" : "missed"}.`,
+    numericMismatch
+      ? `Grounding=${Math.max(conceptScore, phraseScore).toFixed(2)}, numeric=${numericScore.toFixed(2)}, expected numeric evidence was not matched.`
+      : `Grounding=${Math.max(conceptScore, phraseScore).toFixed(2)}, numeric=${numericScore.toFixed(2)}, abstention=${abstentionScore === 1 ? "correct" : "missed"}.`,
   );
 }
 
