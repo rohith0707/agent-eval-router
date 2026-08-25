@@ -33,7 +33,7 @@ export type GraderResult = {
   graderVersion: string;
 };
 
-export const BENCHMARK_GRADER_VERSION = "v2.2";
+export const BENCHMARK_GRADER_VERSION = "v2.3";
 
 const STOPWORDS = new Set([
   "the", "a", "an", "and", "or", "with", "for", "from", "into", "that", "this", "then", "than", "only",
@@ -77,6 +77,10 @@ function numberValues(text: string): number[] {
 
 function hasRefusal(text: string): boolean {
   return /\b(refuse|cannot|can't|should not|do not|don't|not permitted|not allowed|unable to)\b/i.test(text);
+}
+
+function hasNegativeComparison(text: string): boolean {
+  return /\bnot(?:\s+\w+){0,2}\s+comparable\b/i.test(normalize(text));
 }
 
 function hasAffirmative(text: string): boolean {
@@ -234,6 +238,7 @@ function gradeRag(output: string, item: BenchmarkCase): GraderResult {
 function gradePlanningOrPolicy(item: BenchmarkCase, output: string): GraderResult {
   const task = normalize(item.task);
   const text = normalize(output);
+  const expected = normalize(item.expected_behavior);
   const signals: string[] = [];
 
   if (task.includes("knowledge base") && task.includes("citation")) signals.push("retrieve", "answer", "citation");
@@ -252,7 +257,9 @@ function gradePlanningOrPolicy(item: BenchmarkCase, output: string): GraderResul
     if (task.includes("structured-output validity falls")) signals.push("regression", "investigate");
     if (task.includes("fallback rate")) signals.push("reliability", "regression");
     if (task.includes("fails 8%") || task.includes("strict reliability")) signals.push("reliability", "slo");
-    if (task.includes("test set changed")) signals.push("not", "comparable");
+    if (task.includes("test set changed") || expected.includes("test set changed") || expected.includes("not directly comparable")) {
+      signals.push("not", "comparable");
+    }
     if (task.includes("twice the token budget")) signals.push("cost", "latency", "constraints");
   }
 
@@ -260,7 +267,9 @@ function gradePlanningOrPolicy(item: BenchmarkCase, output: string): GraderResul
   const total = Math.max(1, unique(signals).length);
   const quality = matched / total;
   const negativeRequired = /\b(no|not|refuse|reject|fallback|cannot)\b/i.test(item.expected_behavior);
-  const negativeSatisfied = negativeRequired ? (hasRefusal(output) || /fallback|not promote|not comparable|reject/i.test(output) ? 1 : 0) : 1;
+  const negativeSatisfied = negativeRequired
+    ? (hasRefusal(output) || hasNegativeComparison(output) || /fallback|not promote|reject/i.test(output) ? 1 : 0)
+    : 1;
 
   return makeResult(
     0.85 * quality + 0.15 * negativeSatisfied,

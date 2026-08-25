@@ -7,6 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "test:grader": "node scripts/test-benchmark-grader.mjs",
     "validate:benchmark": "node scripts/validate-benchmark.mjs",
     "validate:benchmark:grader": "node scripts/validate-benchmark-grader.mjs",
     "validate:production-contract": "node scripts/validate-production-contract.mjs",
