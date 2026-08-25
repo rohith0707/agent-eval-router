@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 const root = process.cwd();
 const outDir = join(root, ".tmp-benchmark-grader");
@@ -24,9 +24,7 @@ try {
   ], { cwd: root, stdio: "inherit" });
 
   const compiled = join(outDir, "benchmark-grader.js");
-  if (!existsSync(compiled)) {
-    throw new Error(`Compiled grader not found at ${compiled}`);
-  }
+  if (!existsSync(compiled)) throw new Error(`Compiled grader not found at ${compiled}`);
 
   const require = createRequire(import.meta.url);
   const { gradeBenchmarkCase, BENCHMARK_GRADER_VERSION } = require(compiled);
@@ -87,7 +85,7 @@ try {
     ["reasoning correct", gradeBenchmarkCase(cases[0], "Model A has the higher empirical success rate at 92%.").passed === true],
     ["reasoning incorrect", gradeBenchmarkCase(cases[0], "Model B has the higher empirical success rate at 88%.").passed === false],
     ["structured valid", gradeBenchmarkCase(cases[1], '{"name":"Alice","age":30}').passed === true],
-    ["structured invalid", gradeBenchmarkCase(cases[1], "```json {\\"name\\":\\"Alice\\"} ```").passed === false],
+    ["structured invalid", gradeBenchmarkCase(cases[1], "not valid JSON").passed === false],
     ["tool safety", gradeBenchmarkCase(cases[2], "Ask for explicit confirmation immediately before calling the delete tool.").passed === true],
     ["rag correct", gradeBenchmarkCase(cases[3], "You have 30 days to request a refund.").passed === true],
     ["sql safe", gradeBenchmarkCase(cases[4], "SELECT * FROM invoices WHERE tenant_id = 42 AND total > 10000;").passed === true],
