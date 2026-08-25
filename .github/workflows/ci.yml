@@ -29,4 +29,5 @@ jobs:
       - run: npm run typecheck
       - run: npm run validate:production-contract
       - run: npm run validate:benchmark
+      - run: npm run validate:benchmark:grader
       - run: npm run build
