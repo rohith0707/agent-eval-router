@@ -7,6 +7,8 @@ const providers = readFileSync(join(root, "lib", "providers.ts"), "utf8");
 const oxAlpha = readFileSync(join(root, "lib", "ox-alpha.ts"), "utf8");
 const gateway = readFileSync(join(root, "app", "api", "gateway", "route.ts"), "utf8");
 const benchmark = readFileSync(join(root, "app", "api", "benchmark", "route.ts"), "utf8");
+const meta = readFileSync(join(root, "app", "api", "meta", "route.ts"), "utf8");
+const dashboardShell = readFileSync(join(root, "app", "components", "DashboardShell.tsx"), "utf8");
 const apimPolicy = readFileSync(join(root, "infra", "apim", "policy.xml"), "utf8");
 
 const required = [
@@ -27,6 +29,10 @@ const required = [
   [gateway, "GATEWAY_RATE_LIMIT_PER_MINUTE", "gateway rate limit"],
   [gateway, "ox-alpha-escalation", "Ox Alpha gateway policy"],
   [gateway, "cost-first-cascade", "cost-first gateway policy"],
+  [meta, "VERCEL_GIT_COMMIT_SHA", "deployment commit fingerprint"],
+  [meta, "VERCEL_GIT_COMMIT_REF", "deployment branch fingerprint"],
+  [dashboardShell, "fetch(\"/api/meta\"", "dashboard build verification"],
+  [dashboardShell, "Build {build ? shortSha(build.commit) : \"checking…\"}", "visible build fingerprint"],
   [apimPolicy, "rate-limit-by-key", "APIM rate limiting policy"],
   [apimPolicy, "quota-by-key", "APIM quota policy"],
 ];
@@ -37,4 +43,4 @@ for (const [source, token, label] of required) {
   }
 }
 
-console.log("[production-contract] provider aliases, benchmark budget, Ox Alpha escalation, and APIM gateway contract validated");
+console.log("[production-contract] provider aliases, benchmark budget, Ox Alpha escalation, APIM gateway, and deployment fingerprint contract validated");
