@@ -75,7 +75,7 @@ export default function Home() {
   const expectedReference = selectedRun ? traceStep(selectedRun, "Expected reference") : null;
   const actualOutput = selectedRun ? traceStep(selectedRun, "Actual output") : null;
   const grader = selectedRun ? traceStep(selectedRun, "Task-specific grader") : null;
-  const selectedTask = selectedRun ? traceStep(selectedRun, "Task") : selectedRun?.task ?? null;
+  const selectedTask = selectedRun ? traceStep(selectedRun, "Task") ?? selectedRun.task ?? null : null;
 
   return (
     <DashboardShell
