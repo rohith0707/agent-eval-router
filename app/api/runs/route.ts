@@ -32,6 +32,7 @@ export async function GET() {
         quality: true,
         latencyMs: true,
         createdAt: true,
+        traceJson: true,
       },
       orderBy: { createdAt: "desc" },
       take: 50,
