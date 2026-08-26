@@ -4,12 +4,20 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import DashboardShell from "./components/DashboardShell";
 
+type EvidenceTrace = {
+  step: string;
+  status: string;
+  detail?: string;
+};
+
 type Run = {
   externalId: string;
   selectedModel: string;
   quality: number;
   latencyMs: number;
   status: string;
+  task?: string;
+  traceJson?: unknown;
 };
 
 type RunsResponse = {
@@ -23,9 +31,19 @@ type RunsResponse = {
   warning?: string;
 };
 
+function evidenceTrace(run: Run): EvidenceTrace[] {
+  return Array.isArray(run.traceJson) ? (run.traceJson as EvidenceTrace[]) : [];
+}
+
+function traceStep(run: Run, name: string): string | null {
+  const value = evidenceTrace(run).find((entry) => entry.step === name)?.detail;
+  return typeof value === "string" ? value : null;
+}
+
 export default function Home() {
   const [data, setData] = useState<RunsResponse | null>(null);
   const [error, setError] = useState("");
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -35,6 +53,7 @@ export default function Home() {
         if (!active) return;
         setData(payload);
         setError(payload.warning ?? "");
+        if (payload.runs?.[0]) setSelectedRunId(payload.runs[0].externalId);
       })
       .catch(() => {
         if (active) setError("Unable to load evaluation evidence right now.");
@@ -47,10 +66,16 @@ export default function Home() {
 
   const runs = data?.runs ?? [];
   const summary = data?.summary;
+  const selectedRun = runs.find((run) => run.externalId === selectedRunId) ?? runs[0] ?? null;
   const values = useMemo(
     () => runs.slice(0, 12).reverse().map((run) => Math.max(16, Math.round(run.quality * 190))),
     [runs],
   );
+
+  const expectedReference = selectedRun ? traceStep(selectedRun, "Expected reference") : null;
+  const actualOutput = selectedRun ? traceStep(selectedRun, "Actual output") : null;
+  const grader = selectedRun ? traceStep(selectedRun, "Task-specific grader") : null;
+  const selectedTask = selectedRun ? traceStep(selectedRun, "Task") ?? selectedRun.task ?? null : null;
 
   return (
     <DashboardShell
@@ -138,13 +163,13 @@ export default function Home() {
           <div className="topRow">
             <div>
               <h2 className="sectionTitle">Recent evidence</h2>
-              <p className="sectionSub">Every result is traceable to a real run.</p>
+              <p className="sectionSub">Every result is traceable to the reference, the model output, and the grader decision.</p>
             </div>
             <Link href="/runs" className="textLink">All runs →</Link>
           </div>
           {runs.length ? (
             <table className="table">
-              <thead><tr><th>Run</th><th>Strategy</th><th>Quality</th><th>Latency</th><th>Status</th></tr></thead>
+              <thead><tr><th>Run</th><th>Strategy</th><th>Quality</th><th>Latency</th><th>Status</th><th /></tr></thead>
               <tbody>
                 {runs.slice(0, 5).map((run) => (
                   <tr key={run.externalId}>
@@ -153,6 +178,7 @@ export default function Home() {
                     <td>{(run.quality * 100).toFixed(1)}%</td>
                     <td>{run.latencyMs ? `${run.latencyMs}ms` : "—"}</td>
                     <td><span className="pill">{run.status}</span></td>
+                    <td><button className="textLink" onClick={() => setSelectedRunId(run.externalId)}>Inspect</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -160,6 +186,26 @@ export default function Home() {
           ) : <div className="empty">No evaluation evidence yet.</div>}
         </div>
       </section>
+
+      {selectedRun && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <div className="topRow">
+            <div>
+              <p className="eyebrow">EVIDENCE INSPECTOR</p>
+              <h2 className="sectionTitle">Expected vs actual</h2>
+              <p className="sectionSub">A result is trustworthy only when a reviewer can see what the task required and what the model actually produced.</p>
+            </div>
+            <span className="pill">{selectedRun.status}</span>
+          </div>
+
+          <div className="grid2" style={{ marginTop: 16 }}>
+            <EvidenceBlock label="Task" value={selectedTask} empty="Task context was not captured for this run." />
+            <EvidenceBlock label="Expected reference" value={expectedReference} empty="This is an older run; expected reference was not persisted." />
+            <EvidenceBlock label="Actual model output" value={actualOutput} empty="No model output was captured." />
+            <EvidenceBlock label="Grader decision" value={grader} empty="No task-specific grader evidence was persisted." />
+          </div>
+        </section>
+      )}
     </DashboardShell>
   );
 }
@@ -170,4 +216,13 @@ function Metric({ label, value, sub }: { label: string; value: string | number; 
 
 function Signal({ title, value }: { title: string; value: string }) {
   return <div className="signal"><div className="signalTitle">{title}</div><div className="signalValue">{value}</div></div>;
+}
+
+function EvidenceBlock({ label, value, empty }: { label: string; value: string | null; empty: string }) {
+  return (
+    <div className="card" style={{ background: "rgba(255,255,255,.015)" }}>
+      <div className="metricLabel">{label}</div>
+      {value ? <pre style={{ marginTop: 10, whiteSpace: "pre-wrap", fontFamily: "inherit", lineHeight: 1.55 }}>{value}</pre> : <div className="empty" style={{ padding: "16px 0 0" }}>{empty}</div>}
+    </div>
+  );
 }

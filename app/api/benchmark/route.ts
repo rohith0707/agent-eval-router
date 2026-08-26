@@ -14,6 +14,7 @@ const BENCHMARK_CASE_DEADLINE_MS = 10000;
 const BENCHMARK_CONCURRENCY = 10;
 const BENCHMARK_MAX_MODELS_PER_PROVIDER = 2;
 const BENCHMARK_COST_FIRST = true;
+const MAX_EVIDENCE_CHARS = 4000;
 
 type BenchmarkStatus = "passed" | "failed" | "infra_failed";
 type BenchmarkResult = {
@@ -59,6 +60,10 @@ function promptFor(item: BenchmarkCase) {
     },
     { role: "user" as const, content: item.task },
   ];
+}
+
+function trimEvidence(value: string) {
+  return value.length <= MAX_EVIDENCE_CHARS ? value : `${value.slice(0, MAX_EVIDENCE_CHARS)}…`;
 }
 
 export async function POST() {
@@ -128,33 +133,54 @@ export async function POST() {
     let persisted = 0;
     if (databaseConfigured()) {
       try {
-        const data = results.map((result) => ({
-          externalId: `bench_${Date.now()}_${result.id}`,
-          task: result.id,
-          status: result.status === "passed" ? "passed" : "failed",
-          selectedModel: result.model ?? "unresolved",
-          reason: `50-case benchmark · ${result.category} · ${result.evaluation?.mode ?? "infrastructure"}`,
-          quality: result.quality,
-          latencyMs: result.latencyMs ?? 0,
-          cost: 0,
-          reliability: result.status === "passed" ? 1 : 0,
-          candidatesJson: result.attempts,
-          traceJson: [
-            { step: "Benchmark case", status: result.status, detail: result.id },
-            {
-              step: "Provider cascade",
-              status: result.status,
-              detail: result.model ? `${result.provider} / ${result.model}` : "No candidate succeeded",
-            },
-            ...(result.evaluation
-              ? [{
-                  step: "Task-specific grader",
-                  status: result.evaluation.passed ? "passed" : "failed",
-                  detail: `${result.evaluation.graderVersion} · ${result.evaluation.reason}`,
-                }]
-              : []),
-          ],
-        }));
+        const data = results.map((result) => {
+          const benchmarkCase = cases.find((item) => item.id === result.id);
+          const expectedReference = benchmarkCase?.expected_behavior ?? null;
+          const actualOutput = result.output ?? null;
+
+          return {
+            externalId: `bench_${Date.now()}_${result.id}`,
+            task: result.id,
+            status: result.status === "passed" ? "passed" : "failed",
+            selectedModel: result.model ?? "unresolved",
+            reason: `50-case benchmark · ${result.category} · ${result.evaluation?.mode ?? "infrastructure"}`,
+            quality: result.quality,
+            latencyMs: result.latencyMs ?? 0,
+            cost: 0,
+            reliability: result.status === "passed" ? 1 : 0,
+            candidatesJson: result.attempts,
+            traceJson: [
+              { step: "Benchmark case", status: result.status, detail: result.id },
+              {
+                step: "Task",
+                status: "recorded",
+                detail: benchmarkCase?.task ? trimEvidence(benchmarkCase.task) : result.id,
+              },
+              {
+                step: "Expected reference",
+                status: expectedReference ? "recorded" : "unavailable",
+                detail: expectedReference ? trimEvidence(expectedReference) : "No reference captured for this run",
+              },
+              {
+                step: "Actual output",
+                status: actualOutput ? "recorded" : "unavailable",
+                detail: actualOutput ? trimEvidence(actualOutput) : "No model response",
+              },
+              {
+                step: "Provider cascade",
+                status: result.status,
+                detail: result.model ? `${result.provider} / ${result.model}` : "No candidate succeeded",
+              },
+              ...(result.evaluation
+                ? [{
+                    step: "Task-specific grader",
+                    status: result.evaluation.passed ? "passed" : "failed",
+                    detail: `${result.evaluation.graderVersion} · ${result.evaluation.reason}`,
+                  }]
+                : []),
+            ],
+          };
+        });
         persisted = (await db.evaluationRun.createMany({ data })).count;
       } catch (error) {
         console.error("Benchmark persistence failed", error);
