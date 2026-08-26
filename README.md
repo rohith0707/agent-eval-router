@@ -285,16 +285,6 @@ This project contains:
 
 These support the AI workflow, but the portfolio narrative is **AI application quality and improvement**, not platform administration.
 
-## Target roles
-
-The project is designed to demonstrate capability for roles such as:
-
-- AI Engineer
-- Generative AI Engineer
-- AI/ML Engineer focused on LLM applications
-- Applied AI Engineer
-- Agentic AI Engineer
-- LLM Application Engineer
 
 ## Author
 
