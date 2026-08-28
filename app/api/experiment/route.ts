@@ -8,8 +8,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const EXPERIMENT_CONCURRENCY = 5;
+const EXPERIMENT_CONCURRENCY = 15;
 const STRATEGIES: readonly ExperimentStrategy[] = ["baseline", "cheapest", "adaptive"];
+
+type WorkItem = { item: BenchmarkCase; strategy: ExperimentStrategy };
 
 async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length);
@@ -43,7 +45,6 @@ export async function GET() {
   });
 
   if (!latest) return NextResponse.json({ experiment: null });
-
   return NextResponse.json({ experiment: latest.traceJson });
 }
 
@@ -55,13 +56,8 @@ export async function POST() {
 
   const started = performance.now();
   const experimentId = `${Date.now()}`;
-  const results: ExperimentCaseResult[] = [];
-
-  for (const item of cases) {
-    const caseResults = await Promise.all(STRATEGIES.map((strategy) => runExperimentCase(item, strategy)));
-    results.push(...caseResults);
-  }
-
+  const work: WorkItem[] = cases.flatMap((item) => STRATEGIES.map((strategy) => ({ item, strategy })));
+  const results = await mapWithConcurrency(work, EXPERIMENT_CONCURRENCY, ({ item, strategy }) => runExperimentCase(item, strategy));
   const summaries = STRATEGIES.map((strategy) => summarizeStrategy(results, strategy));
   const baseline = summaries.find((summary) => summary.strategy === "baseline")!;
   const adaptive = summaries.find((summary) => summary.strategy === "adaptive")!;
