@@ -12,6 +12,17 @@ const emptySummary = {
   passRate: null as number | null,
 };
 
+type RunRow = {
+  externalId: string;
+  task: string;
+  status: string;
+  selectedModel: string;
+  quality: number;
+  latencyMs: number;
+  createdAt: Date;
+  traceJson: unknown;
+};
+
 export async function GET() {
   if (!databaseConfigured()) {
     return NextResponse.json({
@@ -36,16 +47,16 @@ export async function GET() {
       },
       orderBy: { createdAt: "desc" },
       take: 50,
-    });
+    }) as RunRow[];
 
-    const passed = runs.reduce((count, run) => count + (run.status === "passed" ? 1 : 0), 0);
+    const passed = runs.reduce((count: number, run: RunRow) => count + (run.status === "passed" ? 1 : 0), 0);
 
     return NextResponse.json({
       runs,
       summary: {
         count: runs.length,
-        avgQuality: average(runs.map(run => run.quality)),
-        p95LatencyMs: p95(runs.map(run => run.latencyMs)),
+        avgQuality: average(runs.map((run: RunRow) => run.quality)),
+        p95LatencyMs: p95(runs.map((run: RunRow) => run.latencyMs)),
         passRate: rate(passed, runs.length),
       },
       databaseConnected: true,
