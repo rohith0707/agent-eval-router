@@ -46,7 +46,7 @@ def evaluate_text(
     if contradiction:
         return EvaluationScore(0.0, relevance, 0.0, structured, False, "CONTRADICTS_REFERENCE")
     if not structured:
-        return EvaluationScore(correctness, relevance, groundedness, False, False, "INVALID_STRUCTURED_OUTPUT")
+        return EvaluationScore(0.0, relevance, 0.0, False, False, "INVALID_STRUCTURED_OUTPUT")
     if expected and correctness < 0.8:
         return EvaluationScore(correctness, relevance, groundedness, True, False, "EXPECTED_MISMATCH")
     if required_terms and relevance < 0.8:
@@ -98,8 +98,8 @@ def _has_reference_contradiction(output: str, expected: str | None) -> bool:
     if not _term_present(normalized, expected_normalized):
         return False
 
-    words = normalized.split()
-    target = expected_normalized.split()
+    words = re.findall(r"[a-z0-9]+(?:['.-][a-z0-9]+)*", normalized)
+    target = re.findall(r"[a-z0-9]+(?:['.-][a-z0-9]+)*", expected_normalized)
     width = len(target)
     for index in range(len(words) - width + 1):
         if words[index : index + width] != target:
