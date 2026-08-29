@@ -14,7 +14,9 @@
     "test:benchmark-batching": "node scripts/test-benchmark-batching.mjs",
     "test:provider-registry": "node scripts/test-provider-registry.mjs",
     "test:meta-contract": "node scripts/test-meta-contract.mjs",
-    "test": "npm run test:phase1 && npm run test:grader && npm run test:regression-gate && npm run test:benchmark-evidence && npm run test:benchmark-batching && npm run test:provider-registry && npm run test:meta-contract",
+    "test:agentic-runtime": "node scripts/test-agentic-runtime-contract.mjs",
+    "test:experiment-batching": "node scripts/test-experiment-batching.mjs",
+    "test": "npm run test:phase1 && npm run test:grader && npm run test:regression-gate && npm run test:benchmark-evidence && npm run test:benchmark-batching && npm run test:provider-registry && npm run test:meta-contract && npm run test:agentic-runtime && npm run test:experiment-batching",
     "validate:benchmark": "node scripts/validate-benchmark.mjs",
     "validate:benchmark:grader": "node scripts/validate-benchmark-grader.mjs",
     "validate:experiment": "node scripts/validate-experiment.mjs",
@@ -32,7 +34,6 @@
     "@types/node": "^20.19.43",
     "@types/react": "^19.2.3",
     "@types/react-dom": "^19.2.3",
-    "prisma": "^6.19.2",
     "tailwindcss": "^4.3.3",
     "typescript": "5.8.3",
     "vitest": "^3.2.4"
