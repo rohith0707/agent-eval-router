@@ -23,9 +23,19 @@ jobs:
       - name: Run 50-case production benchmark
         env:
           BASE_URL: https://agent-eval-router-balsarohith5-5561s-projects.vercel.app
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           set -euo pipefail
-          status=$(curl --silent --show-error --output benchmark-result.json --write-out '%{http_code}' --request POST --header 'Content-Type: application/json' --max-time 240 "$BASE_URL/api/benchmark")
+          if [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+            echo "VERCEL_AUTOMATION_BYPASS_SECRET is not configured in GitHub Actions." >&2
+            echo "Configure Vercel Protection Bypass for Automation and add the same secret to GitHub Actions." >&2
+            exit 1
+          fi
+          status=$(curl --silent --show-error --output benchmark-result.json --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            --max-time 240 "$BASE_URL/api/benchmark")
           echo "HTTP status: $status"
           cat benchmark-result.json
           test "$status" = "200"
