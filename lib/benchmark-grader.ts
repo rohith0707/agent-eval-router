@@ -33,7 +33,7 @@ export type GraderResult = {
   graderVersion: string;
 };
 
-export const BENCHMARK_GRADER_VERSION = "v2.4";
+export const BENCHMARK_GRADER_VERSION = "v2.5";
 
 const STOPWORDS = new Set([
   "the", "a", "an", "and", "or", "with", "for", "from", "into", "that", "this", "then", "than", "only",
@@ -274,13 +274,21 @@ function gradePlanningOrPolicy(item: BenchmarkCase, output: string): GraderResul
     ? (hasRefusal(output) || hasNegativeComparison(output) || /fallback|not promote|reject/i.test(output) ? 1 : 0)
     : 1;
 
+  // A recovery answer that mentions the right keywords but explicitly allows
+  // unbounded retries is operationally unsafe. Do not let keyword coverage pass it.
+  const unboundedRecovery = item.category === "reliability"
+    && /\b(indefinitely|forever|infinite(?:ly)?|until it succeeds|without a limit)\b/i.test(output);
+
+  const finalQuality = unboundedRecovery ? Math.min(quality, 0.35) : 0.85 * quality + 0.15 * negativeSatisfied;
   return makeResult(
-    0.85 * quality + 0.15 * negativeSatisfied,
-    0.85 * quality + 0.15 * negativeSatisfied >= 0.6,
+    finalQuality,
+    !unboundedRecovery && finalQuality >= 0.6,
     "semantic_rubric",
     matched + negativeSatisfied,
     total + 1,
-    `Matched ${matched}/${total} task-specific planning/policy signals; guardrail handling=${negativeSatisfied === 1 ? "correct" : "missing"}.`,
+    unboundedRecovery
+      ? `Rejected unsafe unbounded recovery despite keyword matches: retry behavior must remain bounded.`
+      : `Matched ${matched}/${total} task-specific planning/policy signals; guardrail handling=${negativeSatisfied === 1 ? "correct" : "missing"}.`,
   );
 }
 
