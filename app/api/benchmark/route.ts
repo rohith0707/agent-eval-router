@@ -4,16 +4,15 @@ import { db, databaseConfigured } from "../../../lib/db";
 import { average, p95, rate } from "../../../lib/metrics";
 import { AttemptResult, runProviderCascade } from "@/lib/providers";
 import { BENCHMARK_GRADER_VERSION, gradeBenchmarkCase, type BenchmarkCase } from "@/lib/benchmark-grader";
+import { MAX_BENCHMARK_BATCH_SIZE, normalizeBenchmarkBatch, TOTAL_BENCHMARK_CASES } from "@/lib/benchmark-batching";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Keep the benchmark bounded by the 60s Vercel function limit while leaving
-// enough concurrency to finish all 50 cases in a single request.
 const BENCHMARK_ATTEMPT_TIMEOUT_MS = 4000;
 const BENCHMARK_CASE_DEADLINE_MS = 8000;
-const BENCHMARK_CONCURRENCY = 8;
+const BENCHMARK_CONCURRENCY = 3;
 const BENCHMARK_MAX_MODELS_PER_PROVIDER = 2;
 const BENCHMARK_COST_FIRST = true;
 const MAX_EVIDENCE_CHARS = 4000;
@@ -73,25 +72,44 @@ function summarizeAttempts(attempts: AttemptResult[]) {
   }));
 }
 
-export async function POST() {
+function parseBatch(request: Request) {
+  const url = new URL(request.url);
+  const start = Number(url.searchParams.get("start") ?? "0");
+  const limit = Number(url.searchParams.get("limit") ?? String(MAX_BENCHMARK_BATCH_SIZE));
+  return normalizeBenchmarkBatch(start, limit);
+}
+
+export async function POST(request: Request) {
   try {
     const cases = benchmarkCases as BenchmarkCase[];
-    if (cases.length !== 50) return NextResponse.json({ error: "Benchmark suite must contain exactly 50 cases." }, { status: 500 });
+    if (cases.length !== TOTAL_BENCHMARK_CASES) {
+      return NextResponse.json({ error: `Benchmark suite must contain exactly ${TOTAL_BENCHMARK_CASES} cases.` }, { status: 500 });
+    }
 
-    // One bounded preflight catches a fully unavailable provider configuration
-    // before spending the rest of the request budget on the suite.
-    const smoke = await runProviderCascade(promptFor(cases[0]), 120, {
-      attemptTimeoutMs: BENCHMARK_ATTEMPT_TIMEOUT_MS,
-      totalDeadlineMs: BENCHMARK_CASE_DEADLINE_MS,
-      maxModelsPerProvider: BENCHMARK_MAX_MODELS_PER_PROVIDER,
-      costFirst: BENCHMARK_COST_FIRST,
-    });
-    if (!smoke.result) {
-      return NextResponse.json({ error: "Provider preflight failed. No configured model produced a response, so the benchmark was not run.", smoke: { attempts: summarizeAttempts(smoke.attempts) }, graderVersion: BENCHMARK_GRADER_VERSION }, { status: 503 });
+    const batch = parseBatch(request);
+    const batchCases = cases.slice(batch.start, batch.start + batch.limit);
+
+    // The first batch performs provider preflight. Subsequent batches do not
+    // repeat the extra provider call, preserving the bounded execution budget.
+    if (batch.start === 0) {
+      const smoke = await runProviderCascade(promptFor(batchCases[0]), 120, {
+        attemptTimeoutMs: BENCHMARK_ATTEMPT_TIMEOUT_MS,
+        totalDeadlineMs: BENCHMARK_CASE_DEADLINE_MS,
+        maxModelsPerProvider: BENCHMARK_MAX_MODELS_PER_PROVIDER,
+        costFirst: BENCHMARK_COST_FIRST,
+      });
+      if (!smoke.result) {
+        return NextResponse.json({
+          error: "Provider preflight failed. No configured model produced a response, so the benchmark batch was not run.",
+          batch,
+          smoke: { attempts: summarizeAttempts(smoke.attempts) },
+          graderVersion: BENCHMARK_GRADER_VERSION,
+        }, { status: 503 });
+      }
     }
 
     const started = performance.now();
-    const results = await mapWithConcurrency(cases, BENCHMARK_CONCURRENCY, async (item) => {
+    const results = await mapWithConcurrency(batchCases, BENCHMARK_CONCURRENCY, async (item) => {
       const cascade = await runProviderCascade(promptFor(item), 120, {
         attemptTimeoutMs: BENCHMARK_ATTEMPT_TIMEOUT_MS,
         totalDeadlineMs: BENCHMARK_CASE_DEADLINE_MS,
@@ -109,7 +127,7 @@ export async function POST() {
     if (databaseConfigured()) {
       try {
         const data = results.map((result) => {
-          const benchmarkCase = cases.find((item) => item.id === result.id);
+          const benchmarkCase = batchCases.find((item) => item.id === result.id);
           const expectedReference = benchmarkCase?.expected_behavior ?? null;
           const actualOutput = result.output ?? null;
           return {
@@ -117,43 +135,50 @@ export async function POST() {
             task: result.id,
             status: result.status === "passed" ? "passed" : "failed",
             selectedModel: result.model ?? "unresolved",
-            reason: `50-case benchmark · ${result.category} · ${result.evaluation?.mode ?? "infrastructure"}`,
+            reason: `50-case benchmark · batch ${batch.start}-${batch.start + batch.limit - 1} · ${result.category} · ${result.evaluation?.mode ?? "infrastructure"}`,
             quality: result.quality,
             latencyMs: result.latencyMs ?? 0,
             cost: result.attempts.find((attempt) => attempt.outcome === "success")?.estimatedCostUsd ?? 0,
             reliability: result.status === "passed" ? 1 : 0,
-            candidatesJson: result.attempts.map((attempt) => summarizeAttempts([attempt])[0]),
+            candidatesJson: summarizeAttempts(result.attempts),
             traceJson: [
               { step: "Benchmark case", status: result.status, detail: result.id },
+              { step: "Benchmark batch", status: "recorded", detail: `${batch.start}:${batch.start + batch.limit}` },
               { step: "Task", status: "recorded", detail: benchmarkCase?.task ? trimEvidence(benchmarkCase.task) : result.id },
               { step: "Expected reference", status: expectedReference ? "recorded" : "unavailable", detail: expectedReference ? trimEvidence(expectedReference) : "No reference captured for this run" },
               { step: "Actual output", status: actualOutput ? "recorded" : "unavailable", detail: actualOutput ? trimEvidence(actualOutput) : "No model response" },
               { step: "Provider cascade", status: result.status, detail: result.model ? `${result.provider} / ${result.model}` : "No candidate succeeded" },
-              { step: "Attempts", status: result.attempts.length ? "recorded" : "unavailable", detail: JSON.stringify(result.attempts.map((attempt) => summarizeAttempts([attempt])[0])) },
+              { step: "Attempts", status: result.attempts.length ? "recorded" : "unavailable", detail: JSON.stringify(summarizeAttempts(result.attempts)) },
               ...(result.evaluation ? [{ step: "Task-specific grader", status: result.evaluation.passed ? "passed" : "failed", detail: `${result.evaluation.graderVersion} · ${result.evaluation.reason}` }] : []),
             ],
           };
         });
         persisted = (await db.evaluationRun.createMany({ data })).count;
-      } catch (error) { console.error("Benchmark persistence failed", error); }
+      } catch (error) {
+        console.error("Benchmark persistence failed", error);
+      }
     }
 
     const passed = results.filter((result) => result.status === "passed");
     const evaluatedFailures = results.filter((result) => result.status === "failed");
     const infraFailures = results.filter((result) => result.status === "infra_failed");
+    const evaluatedResults = results.filter((result) => result.status !== "infra_failed");
     const providerMix = Object.fromEntries([...new Set(results.map((result) => result.provider).filter(Boolean))].map((provider) => [provider, results.filter((result) => result.provider === provider).length]));
 
     return NextResponse.json({
-      suite: { name: "routing-bench-v1", cases: 50 },
+      suite: { name: "routing-bench-v1", cases: TOTAL_BENCHMARK_CASES },
+      batch: { ...batch, totalCases: TOTAL_BENCHMARK_CASES, maxBatchSize: MAX_BENCHMARK_BATCH_SIZE },
       graderVersion: BENCHMARK_GRADER_VERSION,
       durationMs: Math.round(performance.now() - started),
+      results,
       summary: {
+        total: results.length,
         passed: passed.length,
         failed: evaluatedFailures.length,
         infraFailed: infraFailures.length,
-        evaluated: results.length - infraFailures.length,
+        evaluated: evaluatedResults.length,
         accounted: results.length,
-        averageQuality: Number((average(results.filter((result) => result.status !== "infra_failed").map((result) => result.quality)) ?? 0).toFixed(3)),
+        averageQuality: Number((average(evaluatedResults.map((result) => result.quality)) ?? 0).toFixed(3)),
         passedQuality: Number((average(passed.map((result) => result.quality)) ?? 0).toFixed(3)),
         p95LatencyMs: p95(passed.map((result) => result.latencyMs ?? 0)),
         fallbackRate: Number((rate(results.filter((result) => result.fallbacks > 0).length, results.length) ?? 0).toFixed(3)),
