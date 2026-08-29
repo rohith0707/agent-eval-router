@@ -52,9 +52,9 @@ def test_bad_output_json_contract_fails():
 
 
 def test_failure_precedence_invalid_json_beats_reference_match():
-    """Malformed structured output must fail even when text matches the reference."""
+    """Malformed structured output must fail before reference mismatch."""
     score = evaluate_text('{"name": "Alice"', expected='{"name": "Alice"}')
-    assert score.correctness == 1.0
+    assert score.correctness == 0.0
     assert score.structured_output_valid is False
     assert score.failure_type == "INVALID_STRUCTURED_OUTPUT"
     assert not score.passed
