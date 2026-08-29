@@ -25,7 +25,7 @@ export type RegressionGateResult = {
 function percentile95(values: number[]): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1);
+  const index = Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95));
   return sorted[index];
 }
 
@@ -38,8 +38,9 @@ export function evaluateRegressionGate(
   }
 
   const passedCount = runs.filter((run) => run.passed).length;
+  const failedCount = runs.length - passedCount;
   const quality = passedCount / runs.length;
-  const failureRate = 1 - quality;
+  const failureRate = failedCount / runs.length;
   const p95LatencyMs = percentile95(runs.map((run) => run.latencyMs ?? 0));
   const costPerRunUsd = runs.reduce((sum, run) => sum + (run.costUsd ?? 0), 0) / runs.length;
   const failures: string[] = [];
