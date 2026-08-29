@@ -94,6 +94,28 @@ export async function POST(request: Request) {
           ],
         }));
         persisted = (await db.evaluationRun.createMany({ data })).count;
+
+        await db.evaluationRun.create({
+          data: {
+            externalId: `experiment_summary_${experimentId}`,
+            task: "EXPERIMENT_SUMMARY",
+            status: "completed",
+            selectedModel: "multi-strategy",
+            reason: "Fixed vs Cheapest vs Adaptive comparison",
+            quality: summaries.find((s) => s.strategy === "adaptive")?.averageQuality ?? 0,
+            latencyMs: summaries.find((s) => s.strategy === "adaptive")?.p95LatencyMs ?? 0,
+            cost: summaries.find((s) => s.strategy === "adaptive")?.costPerSuccessfulTaskUsd ?? 0,
+            reliability: summaries.find((s) => s.strategy === "adaptive")?.availability ?? 0,
+            candidatesJson: summaries,
+            traceJson: {
+              experimentId,
+              suite: "routing-bench-v1",
+              batch,
+              summaries,
+            },
+          },
+        });
+        persisted += 1;
       } catch (error) {
         console.error("Experiment batch persistence failed", error);
       }

@@ -8,7 +8,7 @@ const outDir = join(process.cwd(), ".tmp-input-security-test");
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 try {
-  execFileSync(process.platform === "win32" ? "npx.cmd" : "npx", ["tsc", "lib/input-security.ts", "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--outDir", outDir], { stdio: "inherit" });
+  execFileSync(process.platform === "win32" ? "npx.cmd" : "npx", ["tsc", "lib/input-security.ts", "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--outDir", outDir], { stdio: "inherit", shell: process.platform === "win32" });
   const file = join(outDir, "input-security.js");
   assert.equal(existsSync(file), true);
   const require = createRequire(import.meta.url);

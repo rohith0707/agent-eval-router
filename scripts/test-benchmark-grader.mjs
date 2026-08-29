@@ -22,7 +22,7 @@ try {
     "--skipLibCheck",
     "--outDir",
     outDir,
-  ], { cwd: root, stdio: "inherit" });
+  ], { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
 
   const compiled = join(outDir, "benchmark-grader.js");
   if (!existsSync(compiled)) throw new Error(`Compiled grader not found at ${compiled}`);
