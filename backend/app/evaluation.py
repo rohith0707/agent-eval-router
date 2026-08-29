@@ -32,6 +32,10 @@ def evaluate_text(
     This is deliberately not an LLM judge. It combines exact/reference matching,
     token-level semantic overlap, required-term coverage, and contradiction checks.
     The result is deterministic, explainable, and safe to run in CI.
+
+    Failure precedence is explicit: empty output, contradiction, structured
+    contract violation, expected/reference mismatch, then missing required terms.
+    This keeps machine-readable failure categories stable for CI and telemetry.
     """
     text = output.strip()
     if not text:
@@ -53,12 +57,12 @@ def evaluate_text(
             failure_type="CONTRADICTS_REFERENCE",
         )
 
-    if expected and correctness < 0.8:
+    if not structured:
+        failure = "INVALID_STRUCTURED_OUTPUT"
+    elif expected and correctness < 0.8:
         failure = "EXPECTED_MISMATCH"
     elif required_terms and relevance < 0.8:
         failure = "REQUIRED_TERM_MISSING"
-    elif not structured:
-        failure = "INVALID_STRUCTURED_OUTPUT"
     else:
         failure = None
 
