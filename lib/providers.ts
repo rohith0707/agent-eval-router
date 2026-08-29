@@ -56,22 +56,24 @@ type ModelMeta = { inputUsdPer1M: number; outputUsdPer1M: number; costTier: numb
 const DEFAULT_ATTEMPT_TIMEOUT_MS = 3500;
 const DEFAULT_TOTAL_DEADLINE_MS = 50000;
 
+// Keep the default registry aligned with currently documented provider models.
+// Operators can override any provider pool with <PROVIDER>_MODELS env vars.
 const MODEL_REGISTRY: Readonly<Record<ProviderName, readonly string[]>> = {
   gemini: [
-    "gemini-2.5-flash-lite",
-    "gemini-3.1-flash-lite",
     "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
     "gemini-3.6-flash",
+    "gemini-3.7-flash",
   ],
   huggingface: [
-    "google/gemma-2-2b-it:fastest",
-    "Qwen/Qwen3-4B-Thinking-2507:fastest",
-    "Qwen/Qwen2.5-7B-Instruct-1M:fastest",
+    "openai/gpt-oss-120b:fastest",
+    "Qwen/Qwen3-Coder-480B-A35B-Instruct:fastest",
+    "deepseek-ai/DeepSeek-R1:fastest",
   ],
   nvidia: [
-    "meta/llama-3.2-1b-instruct",
-    "meta/llama-3.2-3b-instruct",
-    "meta/llama-3.1-8b-instruct",
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-120b",
+    "meta/llama-3.3-70b-instruct",
   ],
   openrouter: [
     "openrouter/free",
@@ -81,16 +83,16 @@ const MODEL_REGISTRY: Readonly<Record<ProviderName, readonly string[]>> = {
 };
 
 const MODEL_META: Readonly<Record<string, ModelMeta>> = {
-  "gemini-2.5-flash-lite": { inputUsdPer1M: 0.10, outputUsdPer1M: 0.40, costTier: 1 },
   "gemini-3.1-flash-lite": { inputUsdPer1M: 0.10, outputUsdPer1M: 0.40, costTier: 1 },
   "gemini-3.5-flash-lite": { inputUsdPer1M: 0.10, outputUsdPer1M: 0.40, costTier: 1 },
   "gemini-3.6-flash": { inputUsdPer1M: 0.20, outputUsdPer1M: 0.80, costTier: 2 },
-  "google/gemma-2-2b-it:fastest": { inputUsdPer1M: 0.05, outputUsdPer1M: 0.10, costTier: 1 },
-  "Qwen/Qwen3-4B-Thinking-2507:fastest": { inputUsdPer1M: 0.08, outputUsdPer1M: 0.28, costTier: 2 },
-  "Qwen/Qwen2.5-7B-Instruct-1M:fastest": { inputUsdPer1M: 0.10, outputUsdPer1M: 0.30, costTier: 2 },
-  "meta/llama-3.2-1b-instruct": { inputUsdPer1M: 0.03, outputUsdPer1M: 0.12, costTier: 1 },
-  "meta/llama-3.2-3b-instruct": { inputUsdPer1M: 0.05, outputUsdPer1M: 0.18, costTier: 2 },
-  "meta/llama-3.1-8b-instruct": { inputUsdPer1M: 0.15, outputUsdPer1M: 0.30, costTier: 3 },
+  "gemini-3.7-flash": { inputUsdPer1M: 0.20, outputUsdPer1M: 0.80, costTier: 2 },
+  "openai/gpt-oss-120b:fastest": { inputUsdPer1M: 0, outputUsdPer1M: 0, costTier: 1 },
+  "Qwen/Qwen3-Coder-480B-A35B-Instruct:fastest": { inputUsdPer1M: 0, outputUsdPer1M: 0, costTier: 2 },
+  "deepseek-ai/DeepSeek-R1:fastest": { inputUsdPer1M: 0, outputUsdPer1M: 0, costTier: 2 },
+  "openai/gpt-oss-20b": { inputUsdPer1M: 0, outputUsdPer1M: 0, costTier: 1 },
+  "openai/gpt-oss-120b": { inputUsdPer1M: 0, outputUsdPer1M: 0, costTier: 2 },
+  "meta/llama-3.3-70b-instruct": { inputUsdPer1M: 0, outputUsdPer1M: 0, costTier: 3 },
   "openrouter/free": { inputUsdPer1M: 0, outputUsdPer1M: 0, costTier: 0 },
   "deepseek/deepseek-v3.2": { inputUsdPer1M: 0.2288, outputUsdPer1M: 0.3432, costTier: 2 },
   "deepseek/deepseek-chat": { inputUsdPer1M: 0.2002, outputUsdPer1M: 0.8001, costTier: 2 },
@@ -271,9 +273,6 @@ export async function runProviderCascade(messages: Message[], maxTokens = 100, o
         const metadata = errorMetadata(error);
         const outcome = classifyFailure(error);
         attempts.push({ provider, model, outcome, latencyMs: Math.round(performance.now() - attemptStarted), ...metadata });
-
-        // Do not waste the remaining budget retrying a provider that explicitly rate-limited or denied access.
-        // Model-specific failures (notably 404) may still try the next configured model for the same provider.
         if (metadata.statusCode === 429 || metadata.statusCode === 401 || metadata.statusCode === 403 || (metadata.statusCode && metadata.statusCode >= 500)) {
           continue outer;
         }
