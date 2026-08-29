@@ -9,9 +9,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const BENCHMARK_ATTEMPT_TIMEOUT_MS = 5000;
-const BENCHMARK_CASE_DEADLINE_MS = 20000;
-const BENCHMARK_CONCURRENCY = 3;
+// Keep the benchmark bounded by the 60s Vercel function limit while leaving
+// enough concurrency to finish all 50 cases in a single request.
+const BENCHMARK_ATTEMPT_TIMEOUT_MS = 4000;
+const BENCHMARK_CASE_DEADLINE_MS = 8000;
+const BENCHMARK_CONCURRENCY = 8;
 const BENCHMARK_MAX_MODELS_PER_PROVIDER = 2;
 const BENCHMARK_COST_FIRST = true;
 const MAX_EVIDENCE_CHARS = 4000;
@@ -76,6 +78,8 @@ export async function POST() {
     const cases = benchmarkCases as BenchmarkCase[];
     if (cases.length !== 50) return NextResponse.json({ error: "Benchmark suite must contain exactly 50 cases." }, { status: 500 });
 
+    // One bounded preflight catches a fully unavailable provider configuration
+    // before spending the rest of the request budget on the suite.
     const smoke = await runProviderCascade(promptFor(cases[0]), 120, {
       attemptTimeoutMs: BENCHMARK_ATTEMPT_TIMEOUT_MS,
       totalDeadlineMs: BENCHMARK_CASE_DEADLINE_MS,
@@ -161,7 +165,7 @@ export async function POST() {
         const evaluated = categoryResults.filter((result) => result.status !== "infra_failed");
         return [category, { cases: categoryResults.length, evaluated: evaluated.length, passed: categoryResults.filter((result) => result.status === "passed").length, infraFailed: categoryResults.filter((result) => result.status === "infra_failed").length, quality: Number((average(evaluated.map((result) => result.quality)) ?? 0).toFixed(3)), graderVersion: BENCHMARK_GRADER_VERSION }];
       })),
-      failures: [...evaluatedFailures, ...infraFailures].slice(0, 25).map((result) => ({ id: result.id, category: result.category, status: result.status, grader: result.evaluation ? { version: result.evaluation.graderVersion, mode: result.evaluation.mode, reason: result.evaluation.reason } : null, attempts: result.attempts.map((attempt) => summarizeAttempts([attempt])[0]) })),
+      failures: [...evaluatedFailures, ...infraFailures].slice(0, 25).map((result) => ({ id: result.id, category: result.category, status: result.status, grader: result.evaluation ? { version: result.evaluation.graderVersion, mode: result.evaluation.mode, reason: result.evaluation.reason } : null, attempts: summarizeAttempts(result.attempts) })),
     });
   } catch (error) {
     console.error("Benchmark run failed", error);
