@@ -1,14 +1,17 @@
 name: Production benchmark evidence
 
 on:
-  push:
-    branches: ["feat/production-benchmark-evidence"]
+  deployment_status:
   workflow_dispatch:
 
 jobs:
   benchmark-production:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment_status.environment_url != '')
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,11 +21,54 @@ jobs:
         run: node scripts/validate-production-benchmark-workflow.mjs
       - name: Validate production-readiness contract
         run: node scripts/check-production-readiness.mjs
+      - name: Resolve deployment URL
+        env:
+          EVENT_TARGET_URL: ${{ github.event.deployment_status.target_url }}
+          MANUAL_BASE_URL: ${{ vars.PRODUCTION_BENCHMARK_BASE_URL }}
+        run: |
+          set -euo pipefail
+          BASE_URL="${EVENT_TARGET_URL:-${MANUAL_BASE_URL:-}}"
+          if [ -z "$BASE_URL" ]; then
+            echo "No deployment target URL available. For workflow_dispatch, set repository variable PRODUCTION_BENCHMARK_BASE_URL." >&2
+            exit 1
+          fi
+          case "$BASE_URL" in
+            https://*.vercel.app|https://*.vercel.sh) ;;
+            *) echo "Unsupported benchmark target: $BASE_URL" >&2; exit 1;;
+          esac
+          echo "BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
+          echo "Benchmark deployment target: $BASE_URL"
+      - name: Validate deployment fingerprint
+        if: github.event_name == 'deployment_status'
+        env:
+          EXPECTED_SHA: ${{ github.event.deployment_status.sha }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+            echo "VERCEL_AUTOMATION_BYPASS_SECRET is not configured in GitHub Actions." >&2
+            exit 1
+          fi
+          status=$(curl --silent --show-error --output deployment-meta.json --write-out '%{http_code}' \
+            --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            --max-time 20 "$BASE_URL/api/meta")
+          echo "HTTP status: $status"
+          cat deployment-meta.json
+          test "$status" = "200"
+          node - <<'NODE'
+          const fs = require('fs');
+          const meta = JSON.parse(fs.readFileSync('deployment-meta.json', 'utf8'));
+          const expected = process.env.EXPECTED_SHA;
+          if (!meta?.success) throw new Error('Deployment meta endpoint did not return success');
+          if (expected && meta.commit !== expected) {
+            throw new Error(`Deployment SHA mismatch: expected ${expected}, got ${meta.commit}`);
+          }
+          console.log(`Deployment fingerprint verified: ${meta.commit}`);
+          NODE
       - name: Validate benchmark target
         run: node scripts/execute-production-benchmark-note.mjs
       - name: Run 50-case production benchmark in bounded batches
         env:
-          BASE_URL: https://agent-eval-router-balsarohith5-5561s-projects.vercel.app
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           set -euo pipefail
