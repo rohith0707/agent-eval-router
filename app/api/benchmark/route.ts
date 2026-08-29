@@ -62,7 +62,12 @@ function summarizeAttempts(attempts: AttemptResult[]) {
     model: attempt.model,
     outcome: attempt.outcome,
     latencyMs: attempt.latencyMs,
-    error: typeof attempt.error === "string" ? trimEvidence(attempt.error) : undefined,
+    statusCode: attempt.statusCode,
+    detail: typeof attempt.detail === "string" ? trimEvidence(attempt.detail) : undefined,
+    estimatedCostUsd: attempt.estimatedCostUsd,
+    inputTokens: attempt.inputTokens,
+    outputTokens: attempt.outputTokens,
+    reasoningTokens: attempt.reasoningTokens,
   }));
 }
 
@@ -111,15 +116,16 @@ export async function POST() {
             reason: `50-case benchmark · ${result.category} · ${result.evaluation?.mode ?? "infrastructure"}`,
             quality: result.quality,
             latencyMs: result.latencyMs ?? 0,
-            cost: 0,
+            cost: result.attempts.find((attempt) => attempt.outcome === "success")?.estimatedCostUsd ?? 0,
             reliability: result.status === "passed" ? 1 : 0,
-            candidatesJson: result.attempts,
+            candidatesJson: result.attempts.map((attempt) => summarizeAttempts([attempt])[0]),
             traceJson: [
               { step: "Benchmark case", status: result.status, detail: result.id },
               { step: "Task", status: "recorded", detail: benchmarkCase?.task ? trimEvidence(benchmarkCase.task) : result.id },
               { step: "Expected reference", status: expectedReference ? "recorded" : "unavailable", detail: expectedReference ? trimEvidence(expectedReference) : "No reference captured for this run" },
               { step: "Actual output", status: actualOutput ? "recorded" : "unavailable", detail: actualOutput ? trimEvidence(actualOutput) : "No model response" },
-              { step: "Provider cascade", status: result.status, detail: result.model ? `${result.provider} / ${result.model}` : "No candidate succeeded", attempts: summarizeAttempts(result.attempts) },
+              { step: "Provider cascade", status: result.status, detail: result.model ? `${result.provider} / ${result.model}` : "No candidate succeeded" },
+              { step: "Attempts", status: result.attempts.length ? "recorded" : "unavailable", detail: JSON.stringify(result.attempts.map((attempt) => summarizeAttempts([attempt])[0])) },
               ...(result.evaluation ? [{ step: "Task-specific grader", status: result.evaluation.passed ? "passed" : "failed", detail: `${result.evaluation.graderVersion} · ${result.evaluation.reason}` }] : []),
             ],
           };
@@ -155,7 +161,7 @@ export async function POST() {
         const evaluated = categoryResults.filter((result) => result.status !== "infra_failed");
         return [category, { cases: categoryResults.length, evaluated: evaluated.length, passed: categoryResults.filter((result) => result.status === "passed").length, infraFailed: categoryResults.filter((result) => result.status === "infra_failed").length, quality: Number((average(evaluated.map((result) => result.quality)) ?? 0).toFixed(3)), graderVersion: BENCHMARK_GRADER_VERSION }];
       })),
-      failures: [...evaluatedFailures, ...infraFailures].slice(0, 25).map((result) => ({ id: result.id, category: result.category, status: result.status, grader: result.evaluation ? { version: result.evaluation.graderVersion, mode: result.evaluation.mode, reason: result.evaluation.reason } : null, attempts: summarizeAttempts(result.attempts) })),
+      failures: [...evaluatedFailures, ...infraFailures].slice(0, 25).map((result) => ({ id: result.id, category: result.category, status: result.status, grader: result.evaluation ? { version: result.evaluation.graderVersion, mode: result.evaluation.mode, reason: result.evaluation.reason } : null, attempts: result.attempts.map((attempt) => summarizeAttempts([attempt])[0]) })),
     });
   } catch (error) {
     console.error("Benchmark run failed", error);
