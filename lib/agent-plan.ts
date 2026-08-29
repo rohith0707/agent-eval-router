@@ -26,9 +26,16 @@ function normalize(task: string): string {
 
 export function buildExecutionPlan(task: string): AgentExecutionPlan {
   const text = normalize(task);
-  const plan = {
-    taskType: "general" as AgentTaskType,
-    preferredProviders: ["openrouter", "nvidia", "gemini", "huggingface"] as ProviderName[],
+  const plan: {
+    taskType: AgentTaskType;
+    preferredProviders: ProviderName[];
+    routeBeforeInference: true;
+    requiresTool: boolean;
+    maxSteps: number;
+  } = {
+    taskType: "general",
+    preferredProviders: ["openrouter", "nvidia", "gemini", "huggingface"],
+    routeBeforeInference: true,
     requiresTool: false,
     maxSteps: 1,
   };
