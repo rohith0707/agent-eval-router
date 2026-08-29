@@ -100,6 +100,8 @@ def _has_reference_contradiction(output: str, expected: str | None) -> bool:
 
     words = re.findall(r"[a-z0-9]+(?:['.-][a-z0-9]+)*", normalized)
     target = re.findall(r"[a-z0-9]+(?:['.-][a-z0-9]+)*", expected_normalized)
+    if not target:
+        return False
     width = len(target)
     for index in range(len(words) - width + 1):
         if words[index : index + width] != target:
