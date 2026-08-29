@@ -36,6 +36,7 @@ export type CascadeOptions = {
   totalDeadlineMs?: number;
   maxModelsPerProvider?: number;
   costFirst?: boolean;
+  preferredProviders?: readonly ProviderName[];
 };
 
 type ProviderResponse = {
@@ -134,6 +135,14 @@ function modelMeta(model: string): ModelMeta {
 
 function sortModelsByCost(models: readonly string[]): string[] {
   return [...models].sort((a, b) => modelMeta(a).costTier - modelMeta(b).costTier || a.localeCompare(b));
+}
+
+function orderedProviders(preferredProviders: readonly ProviderName[] | undefined): ProviderName[] {
+  const configured = new Set(providerOrder());
+  if (!preferredProviders?.length) return [...configured];
+  const preferred = preferredProviders.filter((provider, index) => configured.has(provider) && preferredProviders.indexOf(provider) === index);
+  const remainder = providerOrder().filter(provider => !preferred.includes(provider));
+  return [...preferred, ...remainder];
 }
 
 const getEndpoint = (provider: ProviderName): string => ENDPOINTS[provider];
@@ -253,8 +262,9 @@ export async function runProviderCascade(messages: Message[], maxTokens = 100, o
   const totalDeadlineMs = options.totalDeadlineMs ?? envPositiveInt("PROVIDER_TOTAL_DEADLINE_MS", DEFAULT_TOTAL_DEADLINE_MS);
   const maxModelsPerProvider = options.maxModelsPerProvider ?? Number.POSITIVE_INFINITY;
   const costFirst = options.costFirst ?? true;
+  const providers = orderedProviders(options.preferredProviders);
 
-  outer: for (const provider of providerOrder()) {
+  outer: for (const provider of providers) {
     const configuredModels = getConfiguredModels(provider);
     const models = (costFirst ? sortModelsByCost(configuredModels) : [...configuredModels]).slice(0, maxModelsPerProvider);
 
