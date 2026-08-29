@@ -49,3 +49,21 @@ def test_bad_output_json_contract_fails():
     score = evaluate_text('{"name": "Alice"', expected='{"name": "Alice"}')
     assert not score.passed
     assert score.failure_type == "INVALID_STRUCTURED_OUTPUT"
+
+
+def test_failure_precedence_invalid_json_beats_reference_match():
+    """Malformed structured output must fail even when text matches the reference."""
+    score = evaluate_text('{"name": "Alice"', expected='{"name": "Alice"}')
+    assert score.correctness == 1.0
+    assert score.structured_output_valid is False
+    assert score.failure_type == "INVALID_STRUCTURED_OUTPUT"
+    assert not score.passed
+
+
+def test_failure_precedence_mismatch_beats_missing_required_term():
+    """Reference mismatch is the primary category when both checks fail."""
+    score = evaluate_text("The answer is 43.", expected="42", required_terms=["42"])
+    assert score.correctness == 0.0
+    assert score.relevance == 0.0
+    assert score.failure_type == "EXPECTED_MISMATCH"
+    assert not score.passed
