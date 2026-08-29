@@ -22,17 +22,20 @@ jobs:
         run: node scripts/execute-production-benchmark-note.mjs
       - name: Run 50-case production benchmark
         env:
-          BASE_URL: https://agent-eval-router.vercel.app
+          BASE_URL: https://agent-eval-router-balsarohith5-5561s-projects.vercel.app
         run: |
           set -euo pipefail
-          curl --fail-with-body --show-error --silent --request POST --header 'Content-Type: application/json' --max-time 240 "$BASE_URL/api/benchmark" > benchmark-result.json
+          status=$(curl --silent --show-error --output benchmark-result.json --write-out '%{http_code}' --request POST --header 'Content-Type: application/json' --max-time 240 "$BASE_URL/api/benchmark")
+          echo "HTTP status: $status"
+          cat benchmark-result.json
+          test "$status" = "200"
           node - <<'NODE'
           const fs = require('fs');
           const result = JSON.parse(fs.readFileSync('benchmark-result.json', 'utf8'));
           if (result.error) throw new Error(result.error);
           if (result.suite?.cases !== 50) throw new Error(`Expected 50 cases, got ${result.suite?.cases}`);
           if (!result.summary) throw new Error('Missing benchmark summary');
-          console.log(JSON.stringify({ suite: result.suite, graderVersion: result.graderVersion, summary: result.summary, providerMix: result.providerMix }, null, 2));
+          console.log(JSON.stringify({suite: result.suite, graderVersion: result.graderVersion, summary: result.summary, providerMix: result.providerMix}, null, 2));
           NODE
       - name: Validate measured evidence
         run: |
