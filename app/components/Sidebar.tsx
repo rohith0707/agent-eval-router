@@ -3,17 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const items = [
-  { href: "/", label: "Overview" },
-  { href: "/live", label: "Evaluate" },
-  { href: "/benchmarks", label: "Benchmark" },
-  { href: "/models", label: "Models" },
+const coreItems = [
+  { href: "/", label: "Overview", description: "System command center" },
+  { href: "/live", label: "Evaluation Lab", description: "Run and compare tasks" },
+  { href: "/benchmarks", label: "Evaluation Cases", description: "Benchmark and regressions" },
+  { href: "/models", label: "Routing Intelligence", description: "Models and decisions" },
+  { href: "/runs", label: "Trace Explorer", description: "Evidence and traces" },
+];
+
+const systemItems = [
   { href: "/health", label: "Reliability" },
-  { href: "/runs", label: "Evidence" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <aside className="sidebar" aria-label="Primary navigation">
@@ -26,29 +33,44 @@ export default function Sidebar() {
       </div>
 
       <nav className="navGroups">
-        {items.map((item) => {
-          const active =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        <div className="navGroup">
+          <div className="navLabel">CONTROL PLANE</div>
+          {coreItems.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`navItem ${active ? "active" : ""}`}
+                aria-current={active ? "page" : undefined}
+                title={item.description}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`navItem ${active ? "active" : ""}`}
-              aria-current={active ? "page" : undefined}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
+        <div className="navGroup navGroupBottom">
+          <div className="navLabel">SYSTEM</div>
+          {systemItems.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`navItem ${active ? "active" : ""}`}
+                aria-current={active ? "page" : undefined}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
       <div className="sidebarFooter">
-        <Link href="/settings" className="navItem secondaryNavItem">
-          Settings
-        </Link>
+        <div className="sidebarStatus"><span className="statusDot ok">●</span> Evidence pipeline active</div>
       </div>
     </aside>
   );
