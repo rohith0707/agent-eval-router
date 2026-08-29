@@ -1,0 +1,45 @@
+name: Production benchmark evidence
+
+on:
+  push:
+    branches: ["feat/production-benchmark-evidence"]
+  workflow_dispatch:
+
+jobs:
+  benchmark-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run 50-case production benchmark
+        env:
+          BASE_URL: https://agent-eval-router.vercel.app
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --show-error --silent --request POST --header 'Content-Type: application/json' --max-time 240 "$BASE_URL/api/benchmark" > benchmark-result.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('benchmark-result.json', 'utf8'));
+          if (result.error) throw new Error(result.error);
+          if (result.suite?.cases !== 50) throw new Error(`Expected 50 cases, got ${result.suite?.cases}`);
+          if (!result.summary) throw new Error('Missing benchmark summary');
+          console.log(JSON.stringify({ suite: result.suite, graderVersion: result.graderVersion, summary: result.summary, providerMix: result.providerMix }, null, 2));
+          NODE
+      - name: Validate measured evidence
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('benchmark-result.json', 'utf8'));
+          const s = result.summary;
+          if (s.evaluated !== 50) throw new Error(`Expected 50 evaluated cases; got ${s.evaluated}`);
+          for (const name of ['averageQuality', 'passedQuality', 'p95LatencyMs', 'fallbackRate']) {
+            if (s[name] === null || s[name] === undefined || Number.isNaN(Number(s[name]))) throw new Error(`Missing measured evidence: ${name}`);
+          }
+          console.log(`Production benchmark evidence validated: ${s.evaluated}/50 evaluated`);
+          NODE
+      - name: Upload raw evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-benchmark-evidence
+          path: benchmark-result.json
+          retention-days: 7
