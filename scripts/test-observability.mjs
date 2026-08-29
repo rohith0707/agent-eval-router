@@ -8,7 +8,7 @@ const outDir = join(process.cwd(), ".tmp-observability-test");
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 try {
-  execFileSync(process.platform === "win32" ? "npx.cmd" : "npx", ["tsc", "lib/observability.ts", "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--outDir", outDir], { stdio: "inherit" });
+  execFileSync(process.platform === "win32" ? "npx.cmd" : "npx", ["tsc", "lib/observability.ts", "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--outDir", outDir], { stdio: "inherit", shell: process.platform === "win32" });
   const file = join(outDir, "observability.js");
   assert.equal(existsSync(file), true);
   const require = createRequire(import.meta.url);
