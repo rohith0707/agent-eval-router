@@ -10,6 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate workflow contract
+        run: node scripts/validate-production-benchmark-workflow.mjs
       - name: Run 50-case production benchmark
         env:
           BASE_URL: https://agent-eval-router.vercel.app
