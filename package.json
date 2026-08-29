@@ -10,6 +10,7 @@
     "test:grader": "node scripts/test-benchmark-grader.mjs",
     "validate:benchmark": "node scripts/validate-benchmark.mjs",
     "validate:benchmark:grader": "node scripts/validate-benchmark-grader.mjs",
+    "validate:experiment": "node scripts/validate-experiment.mjs",
     "validate:production-contract": "node scripts/validate-production-contract.mjs",
     "db:migrate": "RUN_DB_MIGRATIONS=1 node scripts/vercel-build.mjs"
   },
@@ -22,7 +23,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20.19.43",
-    "@types/react": "^19.2.17",
+    "@types/react": "^19.2.3",
     "@types/react-dom": "^19.2.3",
     "prisma": "^6.19.2",
     "tailwindcss": "^4.3.3",

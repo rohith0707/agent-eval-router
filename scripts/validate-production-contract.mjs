@@ -7,6 +7,8 @@ const providers = readFileSync(join(root, "lib", "providers.ts"), "utf8");
 const oxAlpha = readFileSync(join(root, "lib", "ox-alpha.ts"), "utf8");
 const gateway = readFileSync(join(root, "app", "api", "gateway", "route.ts"), "utf8");
 const benchmark = readFileSync(join(root, "app", "api", "benchmark", "route.ts"), "utf8");
+const experiment = readFileSync(join(root, "app", "api", "experiment", "route.ts"), "utf8");
+const experimentEngine = readFileSync(join(root, "lib", "experiment.ts"), "utf8");
 const meta = readFileSync(join(root, "app", "api", "meta", "route.ts"), "utf8");
 const dashboardShell = readFileSync(join(root, "app", "components", "DashboardShell.tsx"), "utf8");
 const apimPolicy = readFileSync(join(root, "infra", "apim", "policy.xml"), "utf8");
@@ -24,6 +26,12 @@ const required = [
   [benchmark, "BENCHMARK_CASE_DEADLINE_MS = 10000", "benchmark case deadline"],
   [benchmark, 'type BenchmarkStatus = "passed" | "failed" | "infra_failed"', "infrastructure failure status"],
   [benchmark, "Provider preflight failed", "benchmark provider preflight"],
+  [experiment, "Fixed vs Cheapest vs Adaptive comparison", "experiment comparison persistence"],
+  [experiment, "STRATEGIES: readonly ExperimentStrategy[] = [\"baseline\", \"cheapest\", \"adaptive\"]", "experiment strategy set"],
+  [experimentEngine, "costPerSuccessfulTaskUsd", "experiment cost metric"],
+  [experimentEngine, "Adaptive policy", "adaptive strategy rationale"],
+  [experimentEngine, "Fixed baseline", "baseline strategy"],
+  [experimentEngine, "Cheapest viable", "cheapest strategy"],
   [oxAlpha, 'stealth/ox-alpha', "Ox Alpha model id"],
   [oxAlpha, "runOxAlpha", "Ox Alpha adapter"],
   [gateway, "GATEWAY_RATE_LIMIT_PER_MINUTE", "gateway rate limit"],
@@ -43,4 +51,4 @@ for (const [source, token, label] of required) {
   }
 }
 
-console.log("[production-contract] provider aliases, benchmark budget, Ox Alpha escalation, APIM gateway, and deployment fingerprint contract validated");
+console.log("[production-contract] provider aliases, benchmark budget, experiment engine, Ox Alpha escalation, APIM gateway, and deployment fingerprint contract validated");
