@@ -9,9 +9,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const BENCHMARK_ATTEMPT_TIMEOUT_MS = 3000;
-const BENCHMARK_CASE_DEADLINE_MS = 10000;
-const BENCHMARK_CONCURRENCY = 10;
+const BENCHMARK_ATTEMPT_TIMEOUT_MS = 5000;
+const BENCHMARK_CASE_DEADLINE_MS = 20000;
+const BENCHMARK_CONCURRENCY = 3;
 const BENCHMARK_MAX_MODELS_PER_PROVIDER = 2;
 const BENCHMARK_COST_FIRST = true;
 const MAX_EVIDENCE_CHARS = 4000;
@@ -56,6 +56,16 @@ function trimEvidence(value: string) {
   return value.length <= MAX_EVIDENCE_CHARS ? value : `${value.slice(0, MAX_EVIDENCE_CHARS)}…`;
 }
 
+function summarizeAttempts(attempts: AttemptResult[]) {
+  return attempts.map((attempt) => ({
+    provider: attempt.provider,
+    model: attempt.model,
+    outcome: attempt.outcome,
+    latencyMs: attempt.latencyMs,
+    error: typeof attempt.error === "string" ? trimEvidence(attempt.error) : undefined,
+  }));
+}
+
 export async function POST() {
   try {
     const cases = benchmarkCases as BenchmarkCase[];
@@ -68,7 +78,7 @@ export async function POST() {
       costFirst: BENCHMARK_COST_FIRST,
     });
     if (!smoke.result) {
-      return NextResponse.json({ error: "Provider preflight failed. No configured model produced a response, so the benchmark was not run.", smoke: { attempts: smoke.attempts }, graderVersion: BENCHMARK_GRADER_VERSION }, { status: 503 });
+      return NextResponse.json({ error: "Provider preflight failed. No configured model produced a response, so the benchmark was not run.", smoke: { attempts: summarizeAttempts(smoke.attempts) }, graderVersion: BENCHMARK_GRADER_VERSION }, { status: 503 });
     }
 
     const started = performance.now();
@@ -109,7 +119,7 @@ export async function POST() {
               { step: "Task", status: "recorded", detail: benchmarkCase?.task ? trimEvidence(benchmarkCase.task) : result.id },
               { step: "Expected reference", status: expectedReference ? "recorded" : "unavailable", detail: expectedReference ? trimEvidence(expectedReference) : "No reference captured for this run" },
               { step: "Actual output", status: actualOutput ? "recorded" : "unavailable", detail: actualOutput ? trimEvidence(actualOutput) : "No model response" },
-              { step: "Provider cascade", status: result.status, detail: result.model ? `${result.provider} / ${result.model}` : "No candidate succeeded" },
+              { step: "Provider cascade", status: result.status, detail: result.model ? `${result.provider} / ${result.model}` : "No candidate succeeded", attempts: summarizeAttempts(result.attempts) },
               ...(result.evaluation ? [{ step: "Task-specific grader", status: result.evaluation.passed ? "passed" : "failed", detail: `${result.evaluation.graderVersion} · ${result.evaluation.reason}` }] : []),
             ],
           };
@@ -132,6 +142,7 @@ export async function POST() {
         failed: evaluatedFailures.length,
         infraFailed: infraFailures.length,
         evaluated: results.length - infraFailures.length,
+        accounted: results.length,
         averageQuality: Number((average(results.filter((result) => result.status !== "infra_failed").map((result) => result.quality)) ?? 0).toFixed(3)),
         passedQuality: Number((average(passed.map((result) => result.quality)) ?? 0).toFixed(3)),
         p95LatencyMs: p95(passed.map((result) => result.latencyMs ?? 0)),
@@ -144,7 +155,7 @@ export async function POST() {
         const evaluated = categoryResults.filter((result) => result.status !== "infra_failed");
         return [category, { cases: categoryResults.length, evaluated: evaluated.length, passed: categoryResults.filter((result) => result.status === "passed").length, infraFailed: categoryResults.filter((result) => result.status === "infra_failed").length, quality: Number((average(evaluated.map((result) => result.quality)) ?? 0).toFixed(3)), graderVersion: BENCHMARK_GRADER_VERSION }];
       })),
-      failures: [...evaluatedFailures, ...infraFailures].slice(0, 10).map((result) => ({ id: result.id, category: result.category, status: result.status, grader: result.evaluation ? { version: result.evaluation.graderVersion, mode: result.evaluation.mode, reason: result.evaluation.reason } : null, attempts: result.attempts })),
+      failures: [...evaluatedFailures, ...infraFailures].slice(0, 25).map((result) => ({ id: result.id, category: result.category, status: result.status, grader: result.evaluation ? { version: result.evaluation.graderVersion, mode: result.evaluation.mode, reason: result.evaluation.reason } : null, attempts: summarizeAttempts(result.attempts) })),
     });
   } catch (error) {
     console.error("Benchmark run failed", error);
