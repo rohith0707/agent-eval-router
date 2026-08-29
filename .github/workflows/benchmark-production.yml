@@ -18,6 +18,8 @@ jobs:
         run: node scripts/validate-production-benchmark-workflow.mjs
       - name: Validate production-readiness contract
         run: node scripts/check-production-readiness.mjs
+      - name: Validate benchmark target
+        run: node scripts/execute-production-benchmark-note.mjs
       - name: Run 50-case production benchmark
         env:
           BASE_URL: https://agent-eval-router.vercel.app
