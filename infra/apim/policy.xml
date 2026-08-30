@@ -1,0 +1,23 @@
+<policies>
+  <inbound>
+    <base />
+
+    <!-- Production gateway contract: protect model endpoints with a per-key rate limit. -->
+    <rate-limit-by-key calls="60" renewal-period="60" counter-key="@(context.Subscription?.Key ?? context.Request.IpAddress)" />
+
+    <!-- Production gateway contract: cap sustained usage per subscription. -->
+    <quota-by-key calls="10000" renewal-period="86400" counter-key="@(context.Subscription?.Key ?? context.Request.IpAddress)" />
+  </inbound>
+
+  <backend>
+    <base />
+  </backend>
+
+  <outbound>
+    <base />
+  </outbound>
+
+  <on-error>
+    <base />
+  </on-error>
+</policies>
