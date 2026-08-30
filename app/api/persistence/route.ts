@@ -22,13 +22,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
   try {
-    const run = await db.evaluationRun.upsert({
+    const run = await (db.evaluationRun.upsert as unknown as (args: unknown) => Promise<unknown>)({
       where: { externalId: String(body.externalId) },
       update: {
         status: String(body.status ?? "pending"),
         quality: typeof body.quality === "number" ? body.quality : 0,
         latencyMs: typeof body.latencyMs === "number" ? body.latencyMs : 0,
         costUsd: typeof body.costUsd === "number" ? body.costUsd : 0,
+        cost: typeof body.costUsd === "number" ? body.costUsd : 0,
         traceJson: (body.traceJson ?? {}) as object,
       },
       create: {

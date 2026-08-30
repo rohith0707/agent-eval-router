@@ -146,23 +146,23 @@ export async function GET() {
     });
   }
   try {
-    const rows = await db.evaluationRun.findMany({
+    const rows = (await db.evaluationRun.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
-    });
+    })) as Array<Record<string, unknown>>;
     const evidenceRows: EvidenceRow[] = rows.map((r) => ({
-      id: r.id,
-      externalId: r.externalId,
-      task: r.task,
-      status: r.status,
-      selectedModel: r.selectedModel,
-      provider: r.provider,
-      category: r.category,
-      strategy: r.strategy,
-      quality: r.quality,
-      latencyMs: r.latencyMs,
-      costUsd: r.costUsd,
-      createdAt: r.createdAt.toISOString(),
+      id: String(r.id ?? ""),
+      externalId: String(r.externalId ?? ""),
+      task: String(r.task ?? ""),
+      status: String(r.status ?? "passed"),
+      selectedModel: String(r.selectedModel ?? "unknown"),
+      provider: String(r.provider ?? "unknown"),
+      category: String(r.category ?? "general"),
+      strategy: String(r.strategy ?? "adaptive"),
+      quality: typeof r.quality === "number" ? r.quality : 0,
+      latencyMs: typeof r.latencyMs === "number" ? r.latencyMs : 0,
+      costUsd: typeof r.costUsd === "number" ? r.costUsd : (typeof r.cost === "number" ? r.cost : 0),
+      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : new Date().toISOString(),
     }));
     return NextResponse.json({
       source: "database",
