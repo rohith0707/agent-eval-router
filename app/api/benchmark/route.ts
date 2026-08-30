@@ -10,10 +10,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const BENCHMARK_ATTEMPT_TIMEOUT_MS = 4000;
-const BENCHMARK_CASE_DEADLINE_MS = 8000;
-const BENCHMARK_CONCURRENCY = 3;
-const BENCHMARK_MAX_MODELS_PER_PROVIDER = 2;
+// A 4s/8s budget was too aggressive for real production LLM latency and made
+// fallback chains look like infrastructure failures. Keep each request safely
+// below Vercel's 60s route budget while allowing multiple provider attempts.
+const BENCHMARK_ATTEMPT_TIMEOUT_MS = 7000;
+const BENCHMARK_CASE_DEADLINE_MS = 15000;
+const BENCHMARK_CONCURRENCY = 2;
+const BENCHMARK_MAX_MODELS_PER_PROVIDER = 3;
 const BENCHMARK_COST_FIRST = true;
 const MAX_EVIDENCE_CHARS = 4000;
 
@@ -97,6 +100,7 @@ export async function POST(request: Request) {
         totalDeadlineMs: BENCHMARK_CASE_DEADLINE_MS,
         maxModelsPerProvider: BENCHMARK_MAX_MODELS_PER_PROVIDER,
         costFirst: BENCHMARK_COST_FIRST,
+        respectCircuitBreaker: false,
       });
       if (!smoke.result) {
         return NextResponse.json({
@@ -115,6 +119,10 @@ export async function POST(request: Request) {
         totalDeadlineMs: BENCHMARK_CASE_DEADLINE_MS,
         maxModelsPerProvider: BENCHMARK_MAX_MODELS_PER_PROVIDER,
         costFirst: BENCHMARK_COST_FIRST,
+        // The workflow already bounds batches and throttles between them. Do
+        // not let a warm Vercel process carry a 60s breaker from one batch into
+        // later benchmark requests and artificially reduce provider coverage.
+        respectCircuitBreaker: false,
       });
       if (!cascade.result) {
         return { id: item.id, category: item.category, status: "infra_failed" as const, quality: 0, latencyMs: null, provider: null, model: null, fallbacks: cascade.attempts.length, attempts: cascade.attempts } satisfies BenchmarkResult;
