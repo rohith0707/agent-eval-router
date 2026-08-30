@@ -37,9 +37,17 @@ type EvidenceSummary = {
   categoryMix: Record<string, number>;
   strategyMix: Record<string, number>;
   recent: EvidenceRow[];
+  evidenceRank?: Array<{
+    model: string;
+    evidenceRank: number;
+    avgQuality: number;
+    avgLatencyMs: number;
+    costPerQuality: number;
+    runs: number;
+  }>;
 };
 
-const DEMO_EVIDENCE: EvidenceRow[] = Array.from({ length: 50 }, (_, i) => {
+const DEMO_EVIDENCE: EvidenceRow[] = Array.from({ length: 100 }, (_, i) => {
   const providers = ["gemini", "huggingface", "nvidia", "openrouter"];
   const models = [
     "gemini-3.5-flash-lite",
