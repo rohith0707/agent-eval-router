@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import benchmarkCases from "@/benchmarks/routing-bench-v1.json";
+import benchmarkCases from "../../../benchmarks/routing-bench-v1.json";
 import { db, databaseConfigured } from "../../../lib/db";
 import { average, p95, rate } from "../../../lib/metrics";
 import { AttemptResult, runProviderCascade } from "@/lib/providers";
@@ -89,8 +89,6 @@ export async function POST(request: Request) {
     const batch = parseBatch(request);
     const batchCases = cases.slice(batch.start, batch.start + batch.limit);
 
-    // The first batch performs provider preflight. Subsequent batches do not
-    // repeat the extra provider call, preserving the bounded execution budget.
     if (batch.start === 0) {
       const smoke = await runProviderCascade(promptFor(batchCases[0]), 120, {
         attemptTimeoutMs: BENCHMARK_ATTEMPT_TIMEOUT_MS,
