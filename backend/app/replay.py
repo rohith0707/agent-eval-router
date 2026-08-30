@@ -1,20 +1,22 @@
 from __future__ import annotations
 
+import logging
+import os
+
 from .models import (
     ConstraintSet,
     EvidenceRow,
     ModelCandidate,
     ReplayResult,
-    RoutingDecision,
+)
+from .router import (
+    DEFAULT_CANDIDATES,
+    _passes_constraints,
+    score_candidate,
+    select_with_constraints,
 )
 
-# v0.1 historical/fixture profiles. These are routing priors, not live measurements.
-# They are replaced/updated by benchmark results in the adaptive-routing path.
-DEFAULT_CANDIDATES = [
-    ModelCandidate(provider="openai", model="gpt-5-mini", quality=0.918, latency_ms=1420, cost=0.014, reliability=0.962),
-    ModelCandidate(provider="anthropic", model="claude-sonnet-4-5", quality=0.952, latency_ms=1880, cost=0.021, reliability=0.971),
-    ModelCandidate(provider="ollama", model="llama3.2", quality=0.874, latency_ms=760, cost=0.002, reliability=0.914),
-]
+logger = logging.getLogger(__name__)
 
 
 def replay_route(
@@ -26,9 +28,7 @@ def replay_route(
 ) -> ReplayResult:
     """Offline replay: pick the best route using historical evidence only.
 
-    Unlike `select_with_constraints`, the decision is purely deterministic
-    from the evidence store, without re-running the model. This is useful
-    for A/B comparisons: how would my routing have behaved against past runs?
+    Deterministic from the evidence store, no live model calls.
     """
     candidates = candidates or DEFAULT_CANDIDATES
     if not candidates:
@@ -36,7 +36,7 @@ def replay_route(
 
     evidence = evidence or []
     if not evidence:
-        # Graceful fallback: route with the constraints only, no evidence.
+        # ponytail: graceful no-evidence fallback (reuses constraint-only path)
         decision = select_with_constraints(constraints, candidates=candidates, evidence=[])
         return ReplayResult(
             provider=decision.selected.provider,
@@ -69,44 +69,60 @@ def replay_route(
         evidence_used=len(evidence),
         constraints=constraints,
     )
-# ── ReplayEngine (Phase 3) ───────────────────────────────────────────────────
 
-import logging
-import os
-
-logger = logging.getLogger(__name__)
 
 class ReplayEngine:
-    """Reads historical evidence and produces constraint-aware replay decisions."""
+    """DB-backed evidence fetcher. Returns empty list when DB is unconfigured."""
 
     def __init__(self, database_url: str | None = None) -> None:
-        self.database_url = database_url or os.environ.get("DATABASE_URL") or os.environ.get("EVALUATION_RUN_QUERY")
+        self.database_url = database_url or os.environ.get("DATABASE_URL")
 
-    async def fetch_evidence(self, task_type: str, limit: int = 20) -> list:
+    async def fetch_evidence(self, task_type: str, limit: int = 20) -> list[EvidenceRow]:
         if not self.database_url:
             logger.info("ReplayEngine: no DB configured; returning empty evidence")
             return []
         try:
             import asyncpg
+        except ImportError:
+            logger.info("ReplayEngine: asyncpg not installed; returning empty evidence")
+            return []
+        try:
             conn = await asyncpg.connect(self.database_url)
             try:
                 rows = await conn.fetch(
                     "SELECT category, selected_model, quality, latency_ms, cost, reliability, status FROM evaluation_runs WHERE category=$1 ORDER BY created_at DESC LIMIT $2",
-                    task_type, limit
+                    task_type, limit,
                 )
-                return [
-                    dict(row) for row in rows
-                ]
             finally:
                 await conn.close()
-        except ImportError:
-            return []
         except Exception as exc:
-            logger.warning("ReplayEngine fetch failed: %s", exc)
+            logger.warning("ReplayEngine: DB query failed: %s", exc)
             return []
+        return [
+            EvidenceRow(
+                task_type=r["category"] or "auto",
+                provider=r["selected_model"] or "unknown",
+                model=r["selected_model"] or "unknown",
+                quality=float(r["quality"] or 0.0),
+                latency_ms=int(r["latency_ms"] or 0),
+                cost_usd=float(r["cost"] or 0.0),
+                reliability=float(r["reliability"] or 1.0),
+                passed=bool(r["status"] == "passed"),
+            )
+            for r in rows
+        ]
 
-    async def replay_route(self, task: str, task_type: str, constraints) -> ReplayResult:
+    async def replay_route(
+        self,
+        task: str,
+        task_type: str,
+        constraints: ConstraintSet,
+    ) -> ReplayResult:
         evidence = await self.fetch_evidence(task_type=task_type)
-        # Pull from router directly (replay_route is already defined above in this file,
-        # but here we do the basic deterministic replay for simplicity)
-        return replay_route(task, task_type, constraints, candidates=DEFAULT_CANDIDATES, evidence=[])
+        return replay_route(
+            task=task,
+            task_type=task_type,
+            constraints=constraints,
+            candidates=DEFAULT_CANDIDATES,
+            evidence=evidence,
+        )
