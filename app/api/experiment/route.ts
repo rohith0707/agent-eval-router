@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import benchmarkCases from "@/benchmarks/routing-bench-v1.json";
+import benchmarkCases from "../../../benchmarks/routing-bench-v1.json";
 import { db, databaseConfigured } from "@/lib/db";
 import { runExperimentCase, summarizeStrategy, type ExperimentCaseResult, type ExperimentStrategy } from "@/lib/experiment";
 import type { BenchmarkCase } from "@/lib/benchmark-grader";
