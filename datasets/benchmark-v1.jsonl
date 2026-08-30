@@ -1,6 +1,0 @@
-{"id":"reasoning-001","category":"reasoning","difficulty":"easy","task":"What is 17 + 25?","expected":"42","required_terms":["42"]}
-{"id":"reasoning-002","category":"reasoning","difficulty":"easy","task":"What is 9 multiplied by 8?","expected":"72","required_terms":["72"]}
-{"id":"structured-001","category":"structured_output","difficulty":"medium","task":"Return the word APPROVED exactly.","expected":"APPROVED","required_terms":["APPROVED"]}
-{"id":"tool-001","category":"tool_calling","difficulty":"medium","task":"State that a calculator tool should be used to compute 19 * 7.","required_terms":["calculator"]}
-{"id":"rag-001","category":"rag","difficulty":"medium","task":"Using the supplied context, identify the policy topic: context says the policy covers model evaluation and regression testing.","required_terms":["model evaluation","regression testing"]}
-{"id":"agent-001","category":"agent_planning","difficulty":"hard","task":"Describe a two-step plan: retrieve evidence, then evaluate the answer.","required_terms":["retrieve","evaluate"]}

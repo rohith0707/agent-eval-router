@@ -1,1 +1,0 @@
-Production benchmark execution is performed against the deployed API with the fixed 50-case suite. Results must be real provider evidence; synthetic performance numbers are prohibited.

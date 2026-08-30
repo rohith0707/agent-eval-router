@@ -1,1 +1,0 @@
-Parallel hardening tracks completed before production evidence run: reliability, observability/cost, and security. Production benchmark remains the final evidence check for the integrated main branch.
