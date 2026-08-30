@@ -1,12 +1,9 @@
 /**
  * Phase 3 — Circuit Breaker for LLM providers.
  *
- * Detects when a provider hits 429/402/403 and "opens" the circuit for that
- * provider for a configurable cool-down window. All subsequent calls to that
- * provider are skipped until the window elapses.
- *
- * This module is shared by the benchmark route and the production cascade so
- * a single rate-limit hit propagates everywhere instead of being re-encountered.
+ * Opens a provider circuit for rate-limit/credit signals (429/402) so
+ * repeated calls do not amplify an already-limited provider. Authentication,
+ * endpoint, and transient server errors remain eligible for normal fallback.
  */
 
 type ProviderName = "gemini" | "huggingface" | "nvidia" | "openrouter";
@@ -20,15 +17,19 @@ type BreakerState = {
   lastReason?: string;
 };
 
-const DEFAULT_COOLDOWN_MS = 60_000; // 60s by default; enough to clear a 429 window.
-const FAILURE_THRESHOLD = 1; // a single 429/402 is enough to open the circuit.
+const DEFAULT_COOLDOWN_MS = 60_000;
+const FAILURE_THRESHOLD = 1;
+
+/** Only rate-limit/credit responses should poison a provider circuit. */
+export function shouldTripCircuit(statusCode?: number): boolean {
+  return statusCode === 402 || statusCode === 429;
+}
 
 class CircuitBreaker {
   private readonly state = new Map<ProviderName, BreakerState>();
 
   constructor(private readonly cooldownMs: number = DEFAULT_COOLDOWN_MS) {}
 
-  /** Returns true if a request to this provider is currently allowed. */
   isOpen(provider: ProviderName): boolean {
     const entry = this.state.get(provider);
     if (!entry) return false;
@@ -39,12 +40,10 @@ class CircuitBreaker {
     return true;
   }
 
-  /** Record a successful call (resets the breaker). */
   recordSuccess(provider: ProviderName): void {
     this.state.delete(provider);
   }
 
-  /** Record a failure that may trip the circuit. */
   recordFailure(provider: ProviderName, reason: string): void {
     const existing = this.state.get(provider);
     const failures = (existing?.failures ?? 0) + 1;
@@ -59,7 +58,6 @@ class CircuitBreaker {
     }
   }
 
-  /** Snapshot of all open circuits (used by /api/health and the benchmark route). */
   snapshot(): Record<ProviderName, { open: boolean; opensUntil: number; lastReason?: string }> {
     const result = {} as Record<ProviderName, { open: boolean; opensUntil: number; lastReason?: string }>;
     for (const provider of ["gemini", "huggingface", "nvidia", "openrouter"] as ProviderName[]) {
