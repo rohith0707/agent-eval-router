@@ -1,19 +1,15 @@
-"""Phase 4: Agent state type for the LangGraph-style workflow."""
-from __future__ import annotations
-from typing import TypedDict, Optional
-
 class AgentState(TypedDict, total=False):
     task: str
     task_type: str
     plan: dict
-    provider: Optional[str]
-    model: Optional[str]
-    output: Optional[str]
-    quality: Optional[float]
-    cost_usd: Optional[float]
-    latency_ms: Optional[int]
-    attempts: list
-    tool_calls: list
-    trajectory: list
+    provider: str | None
+    model: str | None
+    output: str | None
+    quality: float | None
+    cost_usd: float | None
+    latency_ms: int | None
+    attempts: list[AttemptRecord]
+    tool_calls: list[ToolCall]
+    trajectory: list[TrajectoryStep]
     status: str
-    failure_class: Optional[str]
+    failure_class: str | None
