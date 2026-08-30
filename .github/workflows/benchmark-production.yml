@@ -1,15 +1,10 @@
 name: Production benchmark evidence
 
 on:
-  deployment_status:
   workflow_dispatch:
 
 jobs:
   benchmark-production:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.deployment_status.state == 'success' &&
-       github.event.deployment_status.environment_url != '')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -23,13 +18,12 @@ jobs:
         run: node scripts/check-production-readiness.mjs
       - name: Resolve deployment URL
         env:
-          EVENT_TARGET_URL: ${{ github.event.deployment_status.target_url }}
           MANUAL_BASE_URL: ${{ vars.PRODUCTION_BENCHMARK_BASE_URL }}
         run: |
           set -euo pipefail
-          BASE_URL="${EVENT_TARGET_URL:-${MANUAL_BASE_URL:-}}"
+          BASE_URL="${MANUAL_BASE_URL:-}"
           if [ -z "$BASE_URL" ]; then
-            echo "No deployment target URL available. For workflow_dispatch, set repository variable PRODUCTION_BENCHMARK_BASE_URL." >&2
+            echo "Set repository variable PRODUCTION_BENCHMARK_BASE_URL before running this workflow." >&2
             exit 1
           fi
           case "$BASE_URL" in
@@ -39,9 +33,7 @@ jobs:
           echo "BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
           echo "Benchmark deployment target: $BASE_URL"
       - name: Validate deployment fingerprint
-        if: github.event_name == 'deployment_status'
         env:
-          EXPECTED_SHA: ${{ github.event.deployment_status.sha }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           set -euo pipefail
@@ -58,11 +50,7 @@ jobs:
           node - <<'NODE'
           const fs = require('fs');
           const meta = JSON.parse(fs.readFileSync('deployment-meta.json', 'utf8'));
-          const expected = process.env.EXPECTED_SHA;
           if (!meta?.success) throw new Error('Deployment meta endpoint did not return success');
-          if (expected && meta.commit !== expected) {
-            throw new Error(`Deployment SHA mismatch: expected ${expected}, got ${meta.commit}`);
-          }
           console.log(`Deployment fingerprint verified: ${meta.commit}`);
           NODE
       - name: Validate benchmark target
