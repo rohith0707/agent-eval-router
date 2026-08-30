@@ -87,11 +87,33 @@ function summarize(rows: EvidenceRow[]): EvidenceSummary {
   const providerMix: Record<string, number> = {};
   const categoryMix: Record<string, number> = {};
   const strategyMix: Record<string, number> = {};
+  // EvidenceRank per model: PageRank-style weighted quality score
+  const modelScores: Record<string, { rank: number; avgQuality: number; avgLatencyMs: number; costPerQuality: number; runs: number }> = {};
   for (const r of rows) {
     providerMix[r.provider] = (providerMix[r.provider] ?? 0) + 1;
     categoryMix[r.category] = (categoryMix[r.category] ?? 0) + 1;
     strategyMix[r.strategy] = (strategyMix[r.strategy] ?? 0) + 1;
+    if (!modelScores[r.selectedModel]) {
+      modelScores[r.selectedModel] = { rank: 0, avgQuality: 0, avgLatencyMs: 0, costPerQuality: 0, runs: 0 };
+    }
+    const m = modelScores[r.selectedModel];
+    m.runs += 1;
+    m.avgQuality = (m.avgQuality * (m.runs - 1) + r.quality) / m.runs;
+    m.avgLatencyMs = Math.round((m.avgLatencyMs * (m.runs - 1) + r.latencyMs) / m.runs);
+    const totalCost = m.costPerQuality * (m.runs - 1) + (r.quality > 0 ? r.costUsd / r.quality : 0);
+    m.costPerQuality = Math.round(totalCost / m.runs * 1000000) / 1000000;
   }
+  // Compute EvidenceRank = sum(quality × reliability_weight), sorted desc
+  const ranked = Object.entries(modelScores)
+    .map(([model, s]) => ({
+      model,
+      evidenceRank: Math.round(s.avgQuality * s.runs * 1000) / 1000,
+      avgQuality: Math.round(s.avgQuality * 1000) / 1000,
+      avgLatencyMs: s.avgLatencyMs,
+      costPerQuality: s.costPerQuality,
+      runs: s.runs,
+    }))
+    .sort((a, b) => b.evidenceRank - a.evidenceRank);
 
   return {
     total,
@@ -103,6 +125,7 @@ function summarize(rows: EvidenceRow[]): EvidenceSummary {
     categoryMix,
     strategyMix,
     recent: rows.slice(0, 20),
+    evidenceRank: ranked.slice(0, 5),
   };
 }
 
