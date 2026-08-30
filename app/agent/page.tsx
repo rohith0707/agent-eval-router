@@ -40,7 +40,9 @@ export default function AgentLab() {
     setResult(null);
 
     // Animate steps for visual feedback
-    const animated: AgentResult = { steps: NODE_FLOW.map((n) => ({ node: n, status: "pending" })) };
+    const animated: AgentResult = {
+      steps: NODE_FLOW.map((n) => ({ node: n, status: "pending" as const })),
+    };
     setResult(animated);
 
     const animDelays = [200, 600, 1000, 1400];
@@ -48,8 +50,10 @@ export default function AgentLab() {
       setTimeout(() => {
         setResult((prev) => {
           if (!prev) return prev;
-          const next = { ...prev, steps: prev.steps.map((s, idx) => (idx === i ? { ...s, status: "running" } : s)) };
-          return next;
+          const updated: AgentStep[] = prev.steps.map((s, idx) =>
+            idx === i ? ({ ...s, status: "running" }) : s
+          );
+          return { ...prev, steps: updated };
         });
       }, delay);
     });
