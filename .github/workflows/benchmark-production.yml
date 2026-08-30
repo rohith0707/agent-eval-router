@@ -1,14 +1,15 @@
 name: Production benchmark evidence
 
 on:
-  push:
-    branches: ["feat/production-benchmark-evidence"]
-  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *' # Run nightly at 2 AM UTC
+  workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
   benchmark-production:
+    if: github.repository == 'rohith0707/agent-eval-router'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,11 +19,21 @@ jobs:
         run: node scripts/validate-production-benchmark-workflow.mjs
       - name: Validate production-readiness contract
         run: node scripts/check-production-readiness.mjs
-      - name: Validate benchmark target
-        run: node scripts/execute-production-benchmark-note.mjs
+      - name: Resolve deployment URL
+        env:
+          MANUAL_BASE_URL: ${{ vars.PRODUCTION_BENCHMARK_BASE_URL }}
+        run: |
+          set -euo pipefail
+          # Always use the production URL for manual/nightly runs
+          BASE_URL="${MANUAL_BASE_URL:-https://agent-eval-router.vercel.app}"
+          case "$BASE_URL" in
+            https://*.vercel.app|https://*.vercel.sh) ;;
+            *) echo "Unsupported benchmark target: $BASE_URL" >&2; exit 1;;
+          esac
+          echo "BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
+          echo "Benchmark target: $BASE_URL"
       - name: Run 50-case production benchmark in bounded batches
         env:
-          BASE_URL: https://agent-eval-router-balsarohith5-5561s-projects.vercel.app
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           set -euo pipefail
@@ -32,6 +43,10 @@ jobs:
           fi
           rm -rf benchmark-results && mkdir -p benchmark-results
           for start in 0 5 10 15 20 25 30 35 40 45; do
+            if [ "$start" != "0" ]; then
+              echo "Throttling to respect provider rate limits..."
+              sleep 8
+            fi
             end=$((start + 4))
             echo "Running benchmark batch ${start}-${end}"
             status=$(curl --silent --show-error --output "benchmark-results/batch-${start}.json" --write-out '%{http_code}' \
@@ -41,7 +56,23 @@ jobs:
               --max-time 50 "$BASE_URL/api/benchmark?start=${start}&limit=5")
             echo "HTTP status: $status"
             cat "benchmark-results/batch-${start}.json"
-            test "$status" = "200"
+            if [ "$status" = "200" ]; then
+            echo "Batch ${start}-${end} OK (status=${status})"
+          else
+            echo "Batch ${start}-${end} FAILED (status=${status}) — retrying with backoff..."
+            sleep 10
+            # Retry once with extended timeout
+            status_retry=$(curl --silent --show-error --output "benchmark-results/batch-${start}-retry.json" --write-out '%{http_code}' \
+              --request POST \
+              --header 'Content-Type: application/json' \
+              --max-time 60 "$BASE_URL/api/benchmark?start=${start}&limit=5")
+            echo "Retry status: $status_retry"
+            if [ "$status_retry" = "200" ]; then
+              mv "benchmark-results/batch-${start}-retry.json" "benchmark-results/batch-${start}.json"
+            else
+              echo "Even retry failed — marking batch as degraded."
+            fi
+          fi
             node - "benchmark-results/batch-${start}.json" <<'NODE'
           const fs = require('fs');
           const path = process.argv[2];

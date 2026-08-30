@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
@@ -10,10 +10,14 @@ rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
 try {
-  execFileSync(process.platform === "win32" ? "npx.cmd" : "npx", [
-    "tsc", "lib/benchmark-evidence.ts", "--target", "ES2022", "--module", "commonjs",
-    "--moduleResolution", "node", "--skipLibCheck", "--outDir", outDir,
-  ], { cwd: root, stdio: "inherit" });
+  if (process.platform === "win32") {
+    execSync(`npx.cmd tsc lib/benchmark-evidence.ts --target ES2022 --module commonjs --moduleResolution node --skipLibCheck --outDir "${outDir}"`, { cwd: root, stdio: "inherit" });
+  } else {
+    execFileSync("npx", [
+      "tsc", "lib/benchmark-evidence.ts", "--target", "ES2022", "--module", "commonjs",
+      "--moduleResolution", "node", "--skipLibCheck", "--outDir", outDir,
+    ], { cwd: root, stdio: "inherit" });
+  }
 
   const compiled = join(outDir, "benchmark-evidence.js");
   assert.equal(existsSync(compiled), true);

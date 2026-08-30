@@ -74,3 +74,15 @@ async def generate(request: EvaluationRequest) -> dict:
             "configured_candidates": configured,
         },
     }
+
+from .models import ReplayRequest, ReplayResult
+from .replay import ReplayEngine
+
+@app.post("/v1/replay")
+async def replay(request: ReplayRequest) -> ReplayResult:
+    engine = ReplayEngine()
+    return await engine.replay_route(
+        task=request.task,
+        task_type=request.task_type,
+        constraints=request.constraints,
+    )

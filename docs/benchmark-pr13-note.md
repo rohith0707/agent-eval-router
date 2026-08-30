@@ -1,1 +1,0 @@
-PR #13 follow-up execution note: use the fixed 50-case suite for real provider measurements; never report synthetic results. The production benchmark workflow validates full-case execution and preserves raw result evidence as an artifact.

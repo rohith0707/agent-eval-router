@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import DashboardShell from "../components/DashboardShell";
 import { configuredProviders, modelRegistry } from "@/lib/providers";
 import { db, databaseConfigured } from "@/lib/db";
@@ -33,6 +34,9 @@ async function recentRuns(): Promise<RunEvidence[]> {
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params;
+  if (slug[0] === "api") {
+    notFound();
+  }
   const key = slug.at(-1) ?? slug[0] ?? "";
   const meta = copy[key] ?? { title: "AI Workspace", eyebrow: "AI Engineer", description: "Build, evaluate, and improve an AI workflow with measurable evidence." };
   const configured = configuredProviders();

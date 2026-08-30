@@ -4,6 +4,12 @@ import {
   getNvidiaApiKey,
   getOpenRouterApiKey,
 } from "@/lib/config";
+import {
+  isProviderTripped,
+  markProviderFailure,
+  markProviderSuccess,
+  shouldTripCircuit,
+} from "@/lib/circuit-breaker";
 
 export type ProviderName = "gemini" | "huggingface" | "nvidia" | "openrouter";
 export type Message = { role: "system" | "user"; content: string };
@@ -36,6 +42,9 @@ export type CascadeOptions = {
   totalDeadlineMs?: number;
   maxModelsPerProvider?: number;
   costFirst?: boolean;
+  preferredProviders?: readonly ProviderName[];
+  /** Benchmark runs use their own bounded scheduling and must not inherit a warm-process circuit state. */
+  respectCircuitBreaker?: boolean;
 };
 
 type ProviderResponse = {
@@ -56,8 +65,6 @@ type ModelMeta = { inputUsdPer1M: number; outputUsdPer1M: number; costTier: numb
 const DEFAULT_ATTEMPT_TIMEOUT_MS = 3500;
 const DEFAULT_TOTAL_DEADLINE_MS = 50000;
 
-// Keep the default registry aligned with currently documented provider models.
-// Operators can override any provider pool with <PROVIDER>_MODELS env vars.
 const MODEL_REGISTRY: Readonly<Record<ProviderName, readonly string[]>> = {
   gemini: [
     "gemini-3.5-flash-lite",
@@ -136,6 +143,14 @@ function sortModelsByCost(models: readonly string[]): string[] {
   return [...models].sort((a, b) => modelMeta(a).costTier - modelMeta(b).costTier || a.localeCompare(b));
 }
 
+function orderedProviders(preferredProviders: readonly ProviderName[] | undefined): ProviderName[] {
+  const configured = new Set(providerOrder());
+  if (!preferredProviders?.length) return [...configured];
+  const preferred = preferredProviders.filter((provider, index) => configured.has(provider) && preferredProviders.indexOf(provider) === index);
+  const remainder = providerOrder().filter(provider => !preferred.includes(provider));
+  return [...preferred, ...remainder];
+}
+
 const getEndpoint = (provider: ProviderName): string => ENDPOINTS[provider];
 
 function isProviderResponse(value: unknown): value is ProviderResponse {
@@ -152,7 +167,7 @@ function classifyFailure(error: unknown): AttemptOutcome {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   if (message.includes("request timed out")) return "timeout";
   if (message.includes("returned empty output")) return "empty";
-  if (/\b(400|401|403|404|409|422|429|500|502|503|504)\b/.test(message)) return "rejected";
+  if (/\b(400|401|402|403|404|409|422|429|500|502|503|504)\b/.test(message)) return "rejected";
   return "transport";
 }
 
@@ -253,8 +268,15 @@ export async function runProviderCascade(messages: Message[], maxTokens = 100, o
   const totalDeadlineMs = options.totalDeadlineMs ?? envPositiveInt("PROVIDER_TOTAL_DEADLINE_MS", DEFAULT_TOTAL_DEADLINE_MS);
   const maxModelsPerProvider = options.maxModelsPerProvider ?? Number.POSITIVE_INFINITY;
   const costFirst = options.costFirst ?? true;
+  const respectCircuitBreaker = options.respectCircuitBreaker ?? true;
+  const providers = orderedProviders(options.preferredProviders);
 
-  outer: for (const provider of providerOrder()) {
+  outer: for (const provider of providers) {
+    const providerName = provider as ProviderName;
+    if (respectCircuitBreaker && isProviderTripped(providerName)) {
+      attempts.push({ provider: providerName, model: "circuit-broken", outcome: "rejected", latencyMs: 0, statusCode: 429, detail: "Provider circuit open (rate limit/credit); cascading to next provider.", estimatedCostUsd: 0 });
+      continue;
+    }
     const configuredModels = getConfiguredModels(provider);
     const models = (costFirst ? sortModelsByCost(configuredModels) : [...configuredModels]).slice(0, maxModelsPerProvider);
 
@@ -268,12 +290,17 @@ export async function runProviderCascade(messages: Message[], maxTokens = 100, o
       try {
         const result = await callProvider(provider, model, messages, maxTokens, timeoutForAttempt);
         attempts.push({ provider, model, outcome: "success", latencyMs: result.latencyMs, estimatedCostUsd: result.estimatedCostUsd, inputTokens: result.inputTokens, outputTokens: result.outputTokens, reasoningTokens: result.reasoningTokens });
+        if (respectCircuitBreaker) markProviderSuccess(provider);
         return { result, attempts, exhausted: false };
       } catch (error) {
         const metadata = errorMetadata(error);
         const outcome = classifyFailure(error);
         attempts.push({ provider, model, outcome, latencyMs: Math.round(performance.now() - attemptStarted), ...metadata });
-        if (metadata.statusCode === 429 || metadata.statusCode === 401 || metadata.statusCode === 403 || (metadata.statusCode && metadata.statusCode >= 500)) {
+        if (shouldTripCircuit(metadata.statusCode)) {
+          if (respectCircuitBreaker) markProviderFailure(provider, metadata.detail ?? `HTTP ${metadata.statusCode}`);
+          continue outer;
+        }
+        if (metadata.statusCode === 401 || metadata.statusCode === 403 || (metadata.statusCode && metadata.statusCode >= 500)) {
           continue outer;
         }
       }

@@ -9,7 +9,7 @@ for (const stale of [
   "meta/llama-3.2-3b-instruct",
   "meta/llama-3.1-8b-instruct",
 ]) {
-  assert.equal(source.includes(`"${stale}"`), false, `stale model must not be in registry: ${stale}`);
+  assert.equal(source.includes(`\"${stale}\"`), false, `stale model must not be in registry: ${stale}`);
 }
 
 for (const current of [
@@ -18,7 +18,7 @@ for (const current of [
   "openai/gpt-oss-20b",
   "openrouter/free",
 ]) {
-  assert.equal(source.includes(`"${current}"`), true, `current model must be in registry: ${current}`);
+  assert.equal(source.includes(`\"${current}\"`), true, `current model must be in registry: ${current}`);
 }
 
 assert.match(source, /MODEL_REGISTRY[\s\S]*gemini-3\.5-flash-lite/);
