@@ -1,15 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const file = join(process.cwd(), "benchmarks", "routing-bench-v1.jsonl");
-const lines = readFileSync(file, "utf8").split(/\r?\n/).filter(Boolean);
-const cases = lines.map((line, index) => {
-  try {
-    return JSON.parse(line);
-  } catch (error) {
-    throw new Error(`Invalid JSONL at line ${index + 1}: ${error.message}`);
-  }
-});
+const file = join(process.cwd(), "benchmarks", "routing-bench-v1.json");
+const cases = JSON.parse(readFileSync(file, "utf8"));
+
+if (!Array.isArray(cases)) {
+  throw new Error("Benchmark definition must be a JSON array");
+}
 
 if (cases.length !== 50) {
   throw new Error(`Benchmark must contain exactly 50 cases; found ${cases.length}`);
