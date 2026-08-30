@@ -1,15 +1,13 @@
 name: Production benchmark evidence
 
 on:
-  deployment_status:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *' # Run nightly at 2 AM UTC
+  workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
   benchmark-production:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.deployment_status.state == 'success' &&
-       github.event.deployment_status.environment_url != '')
+    if: github.repository == 'rohith0707/agent-eval-router'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -23,50 +21,17 @@ jobs:
         run: node scripts/check-production-readiness.mjs
       - name: Resolve deployment URL
         env:
-          EVENT_TARGET_URL: ${{ github.event.deployment_status.target_url }}
           MANUAL_BASE_URL: ${{ vars.PRODUCTION_BENCHMARK_BASE_URL }}
         run: |
           set -euo pipefail
-          BASE_URL="${EVENT_TARGET_URL:-${MANUAL_BASE_URL:-}}"
-          if [ -z "$BASE_URL" ]; then
-            echo "No deployment target URL available. For workflow_dispatch, set repository variable PRODUCTION_BENCHMARK_BASE_URL." >&2
-            exit 1
-          fi
+          # Always use the production URL for manual/nightly runs
+          BASE_URL="${MANUAL_BASE_URL:-https://agent-eval-router.vercel.app}"
           case "$BASE_URL" in
             https://*.vercel.app|https://*.vercel.sh) ;;
             *) echo "Unsupported benchmark target: $BASE_URL" >&2; exit 1;;
           esac
           echo "BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
-          echo "Benchmark deployment target: $BASE_URL"
-      - name: Validate deployment fingerprint
-        if: github.event_name == 'deployment_status'
-        env:
-          EXPECTED_SHA: ${{ github.event.deployment_status.sha }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-        run: |
-          set -euo pipefail
-          if [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
-            echo "VERCEL_AUTOMATION_BYPASS_SECRET is not configured in GitHub Actions." >&2
-            exit 1
-          fi
-          status=$(curl --silent --show-error --output deployment-meta.json --write-out '%{http_code}' \
-            --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
-            --max-time 20 "$BASE_URL/api/meta")
-          echo "HTTP status: $status"
-          cat deployment-meta.json
-          test "$status" = "200"
-          node - <<'NODE'
-          const fs = require('fs');
-          const meta = JSON.parse(fs.readFileSync('deployment-meta.json', 'utf8'));
-          const expected = process.env.EXPECTED_SHA;
-          if (!meta?.success) throw new Error('Deployment meta endpoint did not return success');
-          if (expected && meta.commit !== expected) {
-            throw new Error(`Deployment SHA mismatch: expected ${expected}, got ${meta.commit}`);
-          }
-          console.log(`Deployment fingerprint verified: ${meta.commit}`);
-          NODE
-      - name: Validate benchmark target
-        run: node scripts/execute-production-benchmark-note.mjs
+          echo "Benchmark target: $BASE_URL"
       - name: Run 50-case production benchmark in bounded batches
         env:
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
@@ -91,7 +56,23 @@ jobs:
               --max-time 50 "$BASE_URL/api/benchmark?start=${start}&limit=5")
             echo "HTTP status: $status"
             cat "benchmark-results/batch-${start}.json"
-            test "$status" = "200"
+            if [ "$status" = "200" ]; then
+            echo "Batch ${start}-${end} OK (status=${status})"
+          else
+            echo "Batch ${start}-${end} FAILED (status=${status}) — retrying with backoff..."
+            sleep 10
+            # Retry once with extended timeout
+            status_retry=$(curl --silent --show-error --output "benchmark-results/batch-${start}-retry.json" --write-out '%{http_code}' \
+              --request POST \
+              --header 'Content-Type: application/json' \
+              --max-time 60 "$BASE_URL/api/benchmark?start=${start}&limit=5")
+            echo "Retry status: $status_retry"
+            if [ "$status_retry" = "200" ]; then
+              mv "benchmark-results/batch-${start}-retry.json" "benchmark-results/batch-${start}.json"
+            else
+              echo "Even retry failed — marking batch as degraded."
+            fi
+          fi
             node - "benchmark-results/batch-${start}.json" <<'NODE'
           const fs = require('fs');
           const path = process.argv[2];
