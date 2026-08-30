@@ -86,12 +86,3 @@ async def replay(request: ReplayRequest) -> ReplayResult:
         task_type=request.task_type,
         constraints=request.constraints,
     )
-
-# ── Phase 3 + Critical-Fix: Provider Circuit-Breaker Endpoint ────────────────
-
-@app.post("/v1/circuit-breaker")
-async def circuit_breaker(request: ReplayRequest) -> dict:
-    """Fast path: if a provider recently hit rate limits, skip it."""
-    engine = ReplayEngine()
-    result = await engine.replay_route(task=request.task, task_type=request.task_type, constraints=request.constraints)
-    return {"status":"recovered" if result.provider else "degraded","provider":result.provider,"model":result.model,"rationale":result.rationale,"confidence_score":result.confidence_score,"evidence_used":result.evidence_used}

@@ -1,10 +1,7 @@
-"""Agent state types for the workflow (reuses pydantic models in app.models)."""
+"""Phase 4: Agent state type for the LangGraph-style workflow."""
 from __future__ import annotations
+from typing import TypedDict, Optional
 
-from typing import Optional, TypedDict
-
-# ponytail: AgentState re-uses the pydantic models already defined in app.models.
-# We only declare the TypedDict here so the graph can carry a runtime-friendly state.
 class AgentState(TypedDict, total=False):
     task: str
     task_type: str
@@ -15,7 +12,7 @@ class AgentState(TypedDict, total=False):
     quality: Optional[float]
     cost_usd: Optional[float]
     latency_ms: Optional[int]
-    attempts: list  # list[AttemptRecord.model_dump()] (dicts for TypedDict)
+    attempts: list
     tool_calls: list
     trajectory: list
     status: str
