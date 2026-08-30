@@ -115,19 +115,19 @@ export async function GET() {
     });
   }
   try {
-    const rows = (await db.evaluationRun.findMany({
+    const rows = await db.evaluationRun.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
-    })) as Array<Omit<EvidenceRow, "id"> & { id: string }>;
+    });
     const evidenceRows: EvidenceRow[] = rows.map((r) => ({
       id: r.id,
       externalId: r.externalId,
       task: r.task,
       status: r.status,
       selectedModel: r.selectedModel,
-      provider: (r as unknown as { provider?: string }).provider ?? "unknown",
-      category: (r as unknown as { category?: string }).category ?? "general",
-      strategy: (r as unknown as { strategy?: string }).strategy ?? "adaptive",
+      provider: r.provider,
+      category: r.category,
+      strategy: r.strategy,
       quality: r.quality,
       latencyMs: r.latencyMs,
       costUsd: r.costUsd,

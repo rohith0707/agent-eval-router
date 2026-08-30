@@ -18,7 +18,7 @@ export default function ProvidersPage() {
     const registry = modelRegistry();
     const info: ProviderInfo[] = Object.entries(registry).map(([name, models]) => ({
       name,
-      status: configured[name] ? "ready" : "needs_setup",
+      status: (configured as Record<string, boolean>)[name] ? "ready" : "needs_setup",
       models: (models as string[]).length,
     }));
     setProviders(info);
