@@ -18,6 +18,10 @@ model EvaluationRun {
   latencyMs      Int
   cost           Float
   reliability    Float
+  provider       String   @default("unknown")
+  category       String   @default("general")
+  strategy       String   @default("adaptive")
+  costUsd        Float    @default(0)
   candidatesJson Json
   traceJson      Json
   createdAt      DateTime @default(now())
