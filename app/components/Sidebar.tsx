@@ -9,6 +9,8 @@ const coreItems = [
   { href: "/benchmarks", label: "Evaluation Cases", description: "Benchmark and regressions" },
   { href: "/models", label: "Routing Intelligence", description: "Models and decisions" },
   { href: "/runs", label: "Trace Explorer", description: "Evidence and traces" },
+  { href: "/evidence", label: "Evidence Comparison", description: "Phase 3 evidence replay" },
+  { href: "/agent", label: "Agent Lab", description: "Stateful agent lab" },
 ];
 
 const systemItems = [
