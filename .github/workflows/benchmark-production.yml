@@ -78,6 +78,10 @@ jobs:
           fi
           rm -rf benchmark-results && mkdir -p benchmark-results
           for start in 0 5 10 15 20 25 30 35 40 45; do
+            if [ "$start" != "0" ]; then
+              echo "Throttling to respect provider rate limits..."
+              sleep 8
+            fi
             end=$((start + 4))
             echo "Running benchmark batch ${start}-${end}"
             status=$(curl --silent --show-error --output "benchmark-results/batch-${start}.json" --write-out '%{http_code}' \

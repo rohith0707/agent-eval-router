@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -8,7 +8,11 @@ const outDir = join(process.cwd(), ".tmp-input-security-test");
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 try {
-  execFileSync(process.platform === "win32" ? "npx.cmd" : "npx", ["tsc", "lib/input-security.ts", "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--outDir", outDir], { stdio: "inherit", shell: process.platform === "win32" });
+  if (process.platform === "win32") {
+    execSync(`npx.cmd tsc lib/input-security.ts --target ES2022 --module commonjs --moduleResolution node --skipLibCheck --outDir "${outDir}"`, { stdio: "inherit" });
+  } else {
+    execFileSync("npx", ["tsc", "lib/input-security.ts", "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--outDir", outDir], { stdio: "inherit" });
+  }
   const file = join(outDir, "input-security.js");
   assert.equal(existsSync(file), true);
   const require = createRequire(import.meta.url);
