@@ -1,9 +1,7 @@
 name: Production benchmark evidence
 
 on:
-  schedule:
-    - cron: '0 2 * * *' # Run nightly at 2 AM UTC
-  workflow_dispatch: # Allows manual trigger from GitHub UI
+  workflow_dispatch: # Production benchmark is intentionally manual-only.
 
 jobs:
   benchmark-production:
@@ -16,7 +14,23 @@ jobs:
         with:
           node-version: 20
       - name: Validate workflow contract
-        run: node scripts/validate-production-benchmark-workflow.mjs
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const workflow = fs.readFileSync('.github/workflows/benchmark-production.yml', 'utf8');
+          if (!workflow.includes('workflow_dispatch:')) throw new Error('workflow_dispatch trigger is required');
+          if (workflow.includes('deployment_status:')) throw new Error('deployment_status trigger must remain disabled');
+          if (workflow.includes('github.event.deployment_status')) throw new Error('deployment-status event references are not allowed');
+          if (!workflow.includes('VERCEL_AUTOMATION_BYPASS_SECRET')) throw new Error('Vercel bypass secret contract missing');
+          if (!workflow.includes('POST') || !workflow.includes('/api/benchmark')) throw new Error('benchmark POST contract missing');
+          if (!workflow.includes('for start in 0 5 10 15 20 25 30 35 40 45')) throw new Error('10 bounded batches required');
+          if (!workflow.includes('Expected 10 benchmark batches')) throw new Error('aggregate batch contract missing');
+          if (!workflow.includes('Expected 50 accounted cases')) throw new Error('50-case accounting contract missing');
+          if (!workflow.includes('Expected 50 unique case IDs')) throw new Error('unique case contract missing');
+          if (!workflow.includes('Expected 50 evaluated cases')) throw new Error('evaluation completeness contract missing');
+          if (!workflow.includes('upload-artifact@v4')) throw new Error('raw evidence artifact contract missing');
+          console.log('[production-benchmark-workflow] PASS manual-only + bounded 10-batch benchmark');
+          NODE
       - name: Validate production-readiness contract
         run: node scripts/check-production-readiness.mjs
       - name: Resolve deployment URL
@@ -24,7 +38,6 @@ jobs:
           MANUAL_BASE_URL: ${{ vars.PRODUCTION_BENCHMARK_BASE_URL }}
         run: |
           set -euo pipefail
-          # Always use the production URL for manual/nightly runs
           BASE_URL="${MANUAL_BASE_URL:-https://agent-eval-router.vercel.app}"
           case "$BASE_URL" in
             https://*.vercel.app|https://*.vercel.sh) ;;
@@ -57,22 +70,21 @@ jobs:
             echo "HTTP status: $status"
             cat "benchmark-results/batch-${start}.json"
             if [ "$status" = "200" ]; then
-            echo "Batch ${start}-${end} OK (status=${status})"
-          else
-            echo "Batch ${start}-${end} FAILED (status=${status}) — retrying with backoff..."
-            sleep 10
-            # Retry once with extended timeout
-            status_retry=$(curl --silent --show-error --output "benchmark-results/batch-${start}-retry.json" --write-out '%{http_code}' \
-              --request POST \
-              --header 'Content-Type: application/json' \
-              --max-time 60 "$BASE_URL/api/benchmark?start=${start}&limit=5")
-            echo "Retry status: $status_retry"
-            if [ "$status_retry" = "200" ]; then
-              mv "benchmark-results/batch-${start}-retry.json" "benchmark-results/batch-${start}.json"
+              echo "Batch ${start}-${end} OK (status=${status})"
             else
-              echo "Even retry failed — marking batch as degraded."
+              echo "Batch ${start}-${end} FAILED (status=${status}) — retrying with backoff..."
+              sleep 10
+              status_retry=$(curl --silent --show-error --output "benchmark-results/batch-${start}-retry.json" --write-out '%{http_code}' \
+                --request POST \
+                --header 'Content-Type: application/json' \
+                --max-time 60 "$BASE_URL/api/benchmark?start=${start}&limit=5")
+              echo "Retry status: $status_retry"
+              if [ "$status_retry" = "200" ]; then
+                mv "benchmark-results/batch-${start}-retry.json" "benchmark-results/batch-${start}.json"
+              else
+                echo "Even retry failed — marking batch as degraded."
+              fi
             fi
-          fi
             node - "benchmark-results/batch-${start}.json" <<'NODE'
           const fs = require('fs');
           const path = process.argv[2];
