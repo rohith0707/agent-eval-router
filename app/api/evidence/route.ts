@@ -139,11 +139,13 @@ function summarize(rows: EvidenceRow[]): EvidenceSummary {
 
 export async function GET() {
   if (!databaseConfigured()) {
-    return NextResponse.json({
-      source: "demo",
-      configured: false,
-      ...summarize(DEMO_EVIDENCE),
-    });
+    return NextResponse.json(
+      {
+        source: "demo",
+        configured: false,
+        ...summarize(DEMO_EVIDENCE),
+      },
+    );
   }
   try {
     const rows = (await db.evaluationRun.findMany({

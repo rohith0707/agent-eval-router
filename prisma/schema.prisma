@@ -25,6 +25,9 @@ model EvaluationRun {
   candidatesJson Json
   traceJson      Json
   createdAt      DateTime @default(now())
+
+  @@index([provider])
+  @@index([createdAt])
 }
 
 model EvaluationCase {

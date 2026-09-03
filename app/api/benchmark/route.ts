@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import benchmarkCases from "@/benchmarks/routing-bench-v1.json";
 import { db, databaseConfigured } from "../../../lib/db";
 import { average, p95, rate } from "../../../lib/metrics";
-import { AttemptResult, runProviderCascade } from "@/lib/providers";
+import { AttemptResult, runProviderCascade, providerOrder } from "@/lib/providers";
 import { BENCHMARK_GRADER_VERSION, gradeBenchmarkCase, type BenchmarkCase } from "@/lib/benchmark-grader";
 import { MAX_BENCHMARK_BATCH_SIZE, normalizeBenchmarkBatch, TOTAL_BENCHMARK_CASES } from "@/lib/benchmark-batching";
 
@@ -113,19 +113,22 @@ export async function POST(request: Request) {
     }
 
     const started = performance.now();
-    const results = await mapWithConcurrency(batchCases, BENCHMARK_CONCURRENCY, async (item) => {
+    const tasks = batchCases.flatMap(item => providerOrder().map(provider => ({ item, provider })));
+
+    const results = await mapWithConcurrency(tasks, BENCHMARK_CONCURRENCY * 2, async ({ item, provider }) => {
       const cascade = await runProviderCascade(promptFor(item), 120, {
         attemptTimeoutMs: BENCHMARK_ATTEMPT_TIMEOUT_MS,
         totalDeadlineMs: BENCHMARK_CASE_DEADLINE_MS,
         maxModelsPerProvider: BENCHMARK_MAX_MODELS_PER_PROVIDER,
         costFirst: BENCHMARK_COST_FIRST,
+        restrictToProviders: [provider],
         // The workflow already bounds batches and throttles between them. Do
         // not let a warm Vercel process carry a 60s breaker from one batch into
         // later benchmark requests and artificially reduce provider coverage.
         respectCircuitBreaker: false,
       });
       if (!cascade.result) {
-        return { id: item.id, category: item.category, status: "infra_failed" as const, quality: 0, latencyMs: null, provider: null, model: null, fallbacks: cascade.attempts.length, attempts: cascade.attempts } satisfies BenchmarkResult;
+        return { id: item.id, category: item.category, status: "infra_failed" as const, quality: 0, latencyMs: null, provider: provider, model: null, fallbacks: cascade.attempts.length, attempts: cascade.attempts } satisfies BenchmarkResult;
       }
       const evaluation = gradeBenchmarkCase(item, cascade.result.output);
       return { id: item.id, category: item.category, status: evaluation.passed ? "passed" : "failed", quality: evaluation.quality, latencyMs: cascade.result.latencyMs, provider: cascade.result.provider, model: cascade.result.model, fallbacks: cascade.attempts.filter((attempt) => attempt.outcome !== "success").length, attempts: cascade.attempts, output: cascade.result.output, evaluation } satisfies BenchmarkResult;
@@ -139,14 +142,18 @@ export async function POST(request: Request) {
           const expectedReference = benchmarkCase?.expected_behavior ?? null;
           const actualOutput = result.output ?? null;
           return {
-            externalId: `bench_${Date.now()}_${result.id}`,
+            externalId: `bench_${Date.now()}_${result.id}_${result.provider ?? "unresolved"}`,
             task: result.id,
             status: result.status === "passed" ? "passed" : "failed",
             selectedModel: result.model ?? "unresolved",
+            provider: result.provider ?? "unknown",
+            category: result.category ?? "general",
+            strategy: "adaptive",
             reason: `50-case benchmark · batch ${batch.start}-${batch.start + batch.limit - 1} · ${result.category} · ${result.evaluation?.mode ?? "infrastructure"}`,
             quality: result.quality,
             latencyMs: result.latencyMs ?? 0,
             cost: result.attempts.find((attempt) => attempt.outcome === "success")?.estimatedCostUsd ?? 0,
+            costUsd: result.attempts.find((attempt) => attempt.outcome === "success")?.estimatedCostUsd ?? 0,
             reliability: result.status === "passed" ? 1 : 0,
             candidatesJson: summarizeAttempts(result.attempts),
             traceJson: [

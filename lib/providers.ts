@@ -43,6 +43,7 @@ export type CascadeOptions = {
   maxModelsPerProvider?: number;
   costFirst?: boolean;
   preferredProviders?: readonly ProviderName[];
+  restrictToProviders?: readonly ProviderName[];
   /** Benchmark runs use their own bounded scheduling and must not inherit a warm-process circuit state. */
   respectCircuitBreaker?: boolean;
 };
@@ -269,7 +270,9 @@ export async function runProviderCascade(messages: Message[], maxTokens = 100, o
   const maxModelsPerProvider = options.maxModelsPerProvider ?? Number.POSITIVE_INFINITY;
   const costFirst = options.costFirst ?? true;
   const respectCircuitBreaker = options.respectCircuitBreaker ?? true;
-  const providers = orderedProviders(options.preferredProviders);
+  const providers = options.restrictToProviders
+    ? orderedProviders(options.restrictToProviders).filter(p => options.restrictToProviders!.includes(p))
+    : orderedProviders(options.preferredProviders);
 
   outer: for (const provider of providers) {
     const providerName = provider as ProviderName;
