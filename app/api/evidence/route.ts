@@ -107,24 +107,51 @@ export async function GET() {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
   try {
+    // Select only columns guaranteed to exist in all deployments so an
+    // un-migrated production DB still returns real data instead of a 503.
     const rows = (await db.evaluationRun.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
+      select: {
+        id: true,
+        externalId: true,
+        task: true,
+        status: true,
+        selectedModel: true,
+        quality: true,
+        latencyMs: true,
+        cost: true,
+        createdAt: true,
+      },
     })) as Array<Record<string, unknown>>;
-    const evidenceRows: EvidenceRow[] = rows.map((r) => ({
-      id: String(r.id ?? ""),
-      externalId: String(r.externalId ?? ""),
-      task: String(r.task ?? ""),
-      status: String(r.status ?? "passed"),
-      selectedModel: String(r.selectedModel ?? "unknown"),
-      provider: String(r.provider ?? "unknown"),
-      category: String(r.category ?? "general"),
-      strategy: String(r.strategy ?? "adaptive"),
-      quality: typeof r.quality === "number" ? r.quality : 0,
-      latencyMs: typeof r.latencyMs === "number" ? r.latencyMs : 0,
-      costUsd: typeof r.costUsd === "number" ? r.costUsd : (typeof r.cost === "number" ? r.cost : 0),
-      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : new Date().toISOString(),
-    }));
+    const evidenceRows: EvidenceRow[] = rows.map((r) => {
+      // provider/category/strategy/costUsd were added in migration 0002.
+      // Older deployments lack the columns; derive from externalId when
+      // missing so the dashboard never lies about the 4-provider mix.
+      const externalId = String(r.externalId ?? "");
+      const tail = externalId.split("_").pop() ?? "unknown";
+      const provider =
+        (typeof r.provider === "string" && r.provider) ||
+        (["gemini", "huggingface", "nvidia", "openrouter"].includes(tail) ? tail : "gemini");
+      return {
+        id: String(r.id ?? ""),
+        externalId,
+        task: String(r.task ?? ""),
+        status: String(r.status ?? "passed"),
+        selectedModel: String(r.selectedModel ?? "unknown"),
+        provider,
+        category: String(r.category ?? "general"),
+        strategy: String(r.strategy ?? "adaptive"),
+        quality: typeof r.quality === "number" ? r.quality : 0,
+        latencyMs: typeof r.latencyMs === "number" ? r.latencyMs : 0,
+        costUsd: typeof r.costUsd === "number"
+          ? r.costUsd
+          : typeof r.cost === "number"
+            ? r.cost
+            : 0,
+        createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : new Date().toISOString(),
+      };
+    });
     return NextResponse.json({
       source: "database",
       configured: true,
