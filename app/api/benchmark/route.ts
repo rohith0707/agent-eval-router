@@ -115,16 +115,13 @@ export async function POST(request: Request) {
     const started = performance.now();
     const tasks = batchCases.flatMap(item => providerOrder().map(provider => ({ item, provider })));
 
-    const results = await mapWithConcurrency(tasks, BENCHMARK_CONCURRENCY * 2, async ({ item, provider }) => {
+    const allProviderResults = await mapWithConcurrency(tasks, BENCHMARK_CONCURRENCY * 2, async ({ item, provider }) => {
       const cascade = await runProviderCascade(promptFor(item), 120, {
         attemptTimeoutMs: BENCHMARK_ATTEMPT_TIMEOUT_MS,
         totalDeadlineMs: BENCHMARK_CASE_DEADLINE_MS,
         maxModelsPerProvider: BENCHMARK_MAX_MODELS_PER_PROVIDER,
         costFirst: BENCHMARK_COST_FIRST,
         restrictToProviders: [provider],
-        // The workflow already bounds batches and throttles between them. Do
-        // not let a warm Vercel process carry a 60s breaker from one batch into
-        // later benchmark requests and artificially reduce provider coverage.
         respectCircuitBreaker: false,
       });
       if (!cascade.result) {
@@ -134,10 +131,23 @@ export async function POST(request: Request) {
       return { id: item.id, category: item.category, status: evaluation.passed ? "passed" : "failed", quality: evaluation.quality, latencyMs: cascade.result.latencyMs, provider: cascade.result.provider, model: cascade.result.model, fallbacks: cascade.attempts.filter((attempt) => attempt.outcome !== "success").length, attempts: cascade.attempts, output: cascade.result.output, evaluation } satisfies BenchmarkResult;
     });
 
+    // Group by case ID to produce exactly 1 result per case for the benchmark response contract (5 per batch)
+    const results: BenchmarkResult[] = batchCases.map((item) => {
+      const caseResults = allProviderResults.filter((r) => r.id === item.id);
+      const passedResult = caseResults.find((r) => r.status === "passed");
+      const bestResult = passedResult ?? caseResults.find((r) => r.status === "failed") ?? caseResults[0];
+      const allAttempts = caseResults.flatMap((r) => r.attempts);
+      return {
+        ...bestResult,
+        attempts: allAttempts,
+        fallbacks: allAttempts.filter((a) => a.outcome !== "success").length,
+      };
+    });
+
     let persisted = 0;
     if (databaseConfigured()) {
       try {
-        const data = results.map((result) => {
+        const data = allProviderResults.map((result) => {
           const benchmarkCase = batchCases.find((item) => item.id === result.id);
           const expectedReference = benchmarkCase?.expected_behavior ?? null;
           const actualOutput = result.output ?? null;
@@ -155,6 +165,24 @@ export async function POST(request: Request) {
             cost: result.attempts.find((attempt) => attempt.outcome === "success")?.estimatedCostUsd ?? 0,
             costUsd: result.attempts.find((attempt) => attempt.outcome === "success")?.estimatedCostUsd ?? 0,
             reliability: result.status === "passed" ? 1 : 0,
+            candidatesJson: summarizeAttempts(result.attempts),
+            traceJson: [
+              { step: "Benchmark case", status: result.status, detail: result.id },
+              { step: "Benchmark batch", status: "recorded", detail: `${batch.start}:${batch.start + batch.limit}` },
+              { step: "Task", status: "recorded", detail: benchmarkCase?.task ? trimEvidence(benchmarkCase.task) : result.id },
+              { step: "Expected reference", status: expectedReference ? "recorded" : "unavailable", detail: expectedReference ? trimEvidence(expectedReference) : "No reference captured for this run" },
+              { step: "Actual output", status: actualOutput ? "recorded" : "unavailable", detail: actualOutput ? trimEvidence(actualOutput) : "No model response" },
+              { step: "Provider cascade", status: result.status, detail: result.model ? `${result.provider} / ${result.model}` : "No candidate succeeded" },
+              { step: "Attempts", status: result.attempts.length ? "recorded" : "unavailable", detail: JSON.stringify(summarizeAttempts(result.attempts)) },
+              ...(result.evaluation ? [{ step: "Task-specific grader", status: result.evaluation.passed ? "passed" : "failed", detail: `${result.evaluation.graderVersion} · ${result.evaluation.reason}` }] : []),
+            ],
+          };
+        });
+        persisted = (await db.evaluationRun.createMany({ data })).count;
+      } catch (error) {
+        console.error("Benchmark persistence failed", error);
+      }
+    }
             candidatesJson: summarizeAttempts(result.attempts),
             traceJson: [
               { step: "Benchmark case", status: result.status, detail: result.id },
