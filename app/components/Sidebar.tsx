@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const navItems = [
   { href: "/", label: "Dashboard", description: "Latest routing decision" },
   { href: "/evidence", label: "Evidence", description: "Decision trail & EvidenceRank" },
+  { href: "/agent", label: "Agent Studio", description: "Plan-Route-Execute-Evaluate pipeline" },
   { href: "/settings", label: "Settings", description: "API keys & configuration" },
 ];
 
