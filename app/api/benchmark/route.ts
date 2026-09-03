@@ -183,25 +183,6 @@ export async function POST(request: Request) {
         console.error("Benchmark persistence failed", error);
       }
     }
-            candidatesJson: summarizeAttempts(result.attempts),
-            traceJson: [
-              { step: "Benchmark case", status: result.status, detail: result.id },
-              { step: "Benchmark batch", status: "recorded", detail: `${batch.start}:${batch.start + batch.limit}` },
-              { step: "Task", status: "recorded", detail: benchmarkCase?.task ? trimEvidence(benchmarkCase.task) : result.id },
-              { step: "Expected reference", status: expectedReference ? "recorded" : "unavailable", detail: expectedReference ? trimEvidence(expectedReference) : "No reference captured for this run" },
-              { step: "Actual output", status: actualOutput ? "recorded" : "unavailable", detail: actualOutput ? trimEvidence(actualOutput) : "No model response" },
-              { step: "Provider cascade", status: result.status, detail: result.model ? `${result.provider} / ${result.model}` : "No candidate succeeded" },
-              { step: "Attempts", status: result.attempts.length ? "recorded" : "unavailable", detail: JSON.stringify(summarizeAttempts(result.attempts)) },
-              ...(result.evaluation ? [{ step: "Task-specific grader", status: result.evaluation.passed ? "passed" : "failed", detail: `${result.evaluation.graderVersion} · ${result.evaluation.reason}` }] : []),
-            ],
-          };
-        });
-        persisted = (await db.evaluationRun.createMany({ data })).count;
-      } catch (error) {
-        console.error("Benchmark persistence failed", error);
-      }
-    }
-
     const passed = results.filter((result) => result.status === "passed");
     const evaluatedFailures = results.filter((result) => result.status === "failed");
     const infraFailures = results.filter((result) => result.status === "infra_failed");
