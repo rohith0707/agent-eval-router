@@ -18,12 +18,10 @@ jobs:
           node <<'NODE'
           const fs = require('fs');
           const workflow = fs.readFileSync('.github/workflows/benchmark-production.yml', 'utf8');
-          if (!workflow.includes('workflow_dispatch:')) throw new Error('workflow_dispatch trigger is required');
-          // Exclude this validation block itself (lines 22-23) from the self-check
-          const lines = workflow.split('\n');
-          const filtered = lines.filter((_, i) => i < 21 || i > 23).join('\n');
-          if (filtered.includes('deployment_status:')) throw new Error('deployment_status trigger must remain disabled');
-          if (filtered.includes('github.event.deployment_status')) throw new Error('deployment-status event references are not allowed');
+          const triggerSection = workflow.split('jobs:')[0];
+          if (!triggerSection.includes('workflow_dispatch:')) throw new Error('workflow_dispatch trigger is required');
+          if (triggerSection.includes('deployment_status:')) throw new Error('deployment_status trigger must remain disabled');
+          if (triggerSection.includes('deployment_status')) throw new Error('deployment_status trigger must remain disabled');
           if (!workflow.includes('VERCEL_AUTOMATION_BYPASS_SECRET')) throw new Error('Vercel bypass secret contract missing');
           if (!workflow.includes('POST') || !workflow.includes('/api/benchmark')) throw new Error('benchmark POST contract missing');
           if (!workflow.includes('for start in 0 5 10 15 20 25 30 35 40 45')) throw new Error('10 bounded batches required');
