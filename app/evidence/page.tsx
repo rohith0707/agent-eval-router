@@ -51,12 +51,35 @@ export default function EvidencePage() {
 
   useEffect(() => {
     fetch("/api/evidence")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) {
+          if (r.status === 503) throw new Error("Evidence database unavailable — no fake data served.");
+          throw new Error("Evidence endpoint returned status " + r.status);
+        }
+        return r.json();
+      })
       .then((d) => {
         setData(d);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((e) => {
+        // No fake data fallback — show error state so user sees truth.
+        setData({
+          source: "error",
+          configured: false,
+          total: 0,
+          passed: 0,
+          failed: 0,
+          averageQuality: 0,
+          averageLatencyMs: 0,
+          providerMix: {},
+          categoryMix: {},
+          strategyMix: {},
+          recent: [],
+          error: String(e instanceof Error ? e.message : e)
+        } as EvidenceResponse);
+        setLoading(false);
+      });
   }, []);
 
   async function triggerEvaluation() {

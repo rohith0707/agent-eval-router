@@ -1,9 +1,9 @@
 /**
  * /api/evidence
  *
- * Day 5: Live evidence endpoint — returns recent evaluation runs
- * from PostgreSQL with provider mix, quality deltas, and trend.
- * Falls back to in-memory demo data if DB is not configured.
+ * Returns recent evaluation runs from PostgreSQL with provider mix,
+ * quality deltas, and trend. Returns 503 if the database is not
+ * configured or the query fails — no fake data, no green lies.
  */
 
 import { NextResponse } from "next/server";
@@ -46,41 +46,6 @@ type EvidenceSummary = {
     runs: number;
   }>;
 };
-
-const DEMO_EVIDENCE: EvidenceRow[] = Array.from({ length: 100 }, (_, i) => {
-  const providers = ["gemini", "huggingface", "nvidia", "openrouter"];
-  const models = [
-    "gemini-3.5-flash-lite",
-    "gemini-3.6-flash",
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b",
-    "deepseek/deepseek-chat",
-    "Qwen/Qwen3-Coder-480B",
-    "meta/llama-3.3-70b-instruct",
-  ];
-  const categories = ["reasoning", "coding", "extraction", "creative", "classification", "math", "qa", "summarization"];
-  const strategies = ["baseline", "cheapest", "adaptive"];
-  const provider = providers[i % providers.length];
-  const model = models[i % models.length];
-  const category = categories[i % categories.length];
-  const strategy = strategies[i % strategies.length];
-  const quality = 0.88 + ((i * 7) % 12) / 100;
-  const passed = quality >= 0.85;
-  return {
-    id: `demo-${i + 1}`,
-    externalId: `benchmark-case-${String(i + 1).padStart(2, "0")}`,
-    task: `${category} task ${i + 1}`,
-    status: passed ? "passed" : "failed",
-    selectedModel: model,
-    provider,
-    category,
-    strategy,
-    quality: Number(quality.toFixed(3)),
-    latencyMs: 380 + (i * 47) % 1000,
-    costUsd: Number((0.0003 + (i % 10) * 0.0001).toFixed(6)),
-    createdAt: new Date(Date.now() - (50 - i) * 3600_000).toISOString(),
-  };
-});
 
 function summarize(rows: EvidenceRow[]): EvidenceSummary {
   const passed = rows.filter((r) => r.status === "passed").length;
@@ -139,13 +104,7 @@ function summarize(rows: EvidenceRow[]): EvidenceSummary {
 
 export async function GET() {
   if (!databaseConfigured()) {
-    return NextResponse.json(
-      {
-        source: "demo",
-        configured: false,
-        ...summarize(DEMO_EVIDENCE),
-      },
-    );
+    return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
   try {
     const rows = (await db.evaluationRun.findMany({
@@ -174,12 +133,12 @@ export async function GET() {
   } catch (err) {
     return NextResponse.json(
       {
-        source: "error",
+        source: "database_error",
         configured: true,
         error: err instanceof Error ? err.message : String(err),
-        ...summarize(DEMO_EVIDENCE),
+        message: "Evidence database query failed — real data unavailable.",
       },
-      { status: 200 }
+      { status: 503 }
     );
   }
 }
