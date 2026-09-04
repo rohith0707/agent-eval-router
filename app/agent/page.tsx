@@ -69,10 +69,10 @@ export default function AgentLab() {
         steps: realSteps,
         output: data.state?.output ?? "No output returned from agent.",
         quality: data.quality ?? 0.92,
-        model: data.selected_model ?? data.model ?? "Unknown model",
-        provider: data.selected_provider ?? data.provider ?? "Unknown provider",
-        costUsd: data.cost ?? data.cost_usd ?? 0,
-        latencyMs: data.latency_ms ?? 0,
+        model: data.state?.selected_model ?? "Unknown model",
+        provider: data.state?.selected_provider ?? "Unknown provider",
+        costUsd: data.state?.cost ?? 0,
+        latencyMs: data.state?.latency_ms ?? 0,
         reasoning: data.rationale ?? "Adaptive policy selected this model based on past benchmark evidence.",
       });
     } catch (err) {
