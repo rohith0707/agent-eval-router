@@ -33,16 +33,38 @@ export default function Home() {
       fontFamily: "var(--font-geist-sans)"
     }}>
       {/* 1. PROBLEM → SOLUTION IN 10 SECONDS */}
-      <section style={{ marginBottom: 56 }}>
-        <h1 style={{ fontSize: 36, fontWeight: 800, margin: 0, letterSpacing: "-0.03em", color: "#ffffff" }}>
-          AI models ship every day.{" "}
-          <span style={{ color: "#10b981" }}>Quality drops. Costs spike.</span>
-        </h1>
-        <p style={{ fontSize: 18, color: "#9ca3af", margin: "12px 0 0 0", maxWidth: 720, lineHeight: 1.5 }}>
-          Agent Eval Router tests every AI change against 50 real cases, scores them with{" "}
-          <strong style={{ color: "#ffffff" }}>EvidenceRank</strong>, and tells you
-          if the change made the product <em>better, worse, or cheaper</em>.
-        </p>
+      <section style={{ marginBottom: 40 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+          <div>
+            <h1 style={{ fontSize: 36, fontWeight: 800, margin: 0, letterSpacing: "-0.03em", color: "#ffffff" }}>
+              AI models ship every day.{" "}
+              <span style={{ color: "#10b981" }}>Quality drops. Costs spike.</span>
+            </h1>
+            <p style={{ fontSize: 18, color: "#9ca3af", margin: "12px 0 0 0", maxWidth: 720, lineHeight: 1.5 }}>
+              Agent Eval Router tests every AI change against 50 real cases, scores them with{" "}
+              <strong style={{ color: "#ffffff" }}>EvidenceRank</strong>, and tells you
+              if the change made the product <em>better, worse, or cheaper</em>.
+            </p>
+          </div>
+          <a
+            href="/compare"
+            style={{
+              padding: "10px 18px",
+              borderRadius: 8,
+              background: "#10b981",
+              color: "#000000",
+              fontWeight: 700,
+              fontSize: 13,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              boxShadow: "0 4px 14px rgba(16, 185, 129, 0.4)",
+            }}
+          >
+            Inspect Regression Gate →
+          </a>
+        </div>
       </section>
 
       {/* 2. THE WINNER (current production state) */}

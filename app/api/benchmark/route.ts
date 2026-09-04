@@ -179,6 +179,7 @@ export async function POST(request: Request) {
             latencyMs: result.latencyMs ?? 0,
             cost: result.attempts.find((attempt) => attempt.outcome === "success")?.estimatedCostUsd ?? 0,
             costUsd: result.attempts.find((attempt) => attempt.outcome === "success")?.estimatedCostUsd ?? 0,
+            commitSha: process.env.VERCEL_GIT_COMMIT_SHA ?? "local",
             reliability: result.status === "passed" ? 1 : 0,
             candidatesJson: summarizeAttempts(result.attempts),
             traceJson: [

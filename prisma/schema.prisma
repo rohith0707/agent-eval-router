@@ -22,11 +22,13 @@ model EvaluationRun {
   category       String   @default("general")
   strategy       String   @default("adaptive")
   costUsd        Float    @default(0)
+  commitSha      String   @default("unknown")
   candidatesJson Json
   traceJson      Json
   createdAt      DateTime @default(now())
 
   @@index([provider])
+  @@index([commitSha])
   @@index([createdAt])
 }
 
