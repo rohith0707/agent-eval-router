@@ -7,14 +7,31 @@ from .models import (
     ReplayResult,
     RoutingDecision,
 )
+from .router import (
+    DEFAULT_CANDIDATES,
+    _passes_constraints,
+    score_candidate,
+)
 
-# v0.1 historical/fixture profiles. These are routing priors, not live measurements.
-# They are replaced/updated by benchmark results in the adaptive-routing path.
-DEFAULT_CANDIDATES = [
-    ModelCandidate(provider="openai", model="gpt-5-mini", quality=0.918, latency_ms=1420, cost=0.014, reliability=0.962),
-    ModelCandidate(provider="anthropic", model="claude-sonnet-4-5", quality=0.952, latency_ms=1880, cost=0.021, reliability=0.971),
-    ModelCandidate(provider="ollama", model="llama3.2", quality=0.874, latency_ms=760, cost=0.002, reliability=0.914),
-]
+
+class ReplayEngine:
+    def __init__(self, candidates: list[ModelCandidate] | None = None):
+        self.candidates = candidates or DEFAULT_CANDIDATES
+
+    async def replay_route(
+        self,
+        task: str,
+        task_type: str,
+        constraints: ConstraintSet,
+        evidence: list[EvidenceRow] | None = None,
+    ) -> ReplayResult:
+        return replay_route(
+            task=task,
+            task_type=task_type,
+            constraints=constraints,
+            candidates=self.candidates,
+            evidence=evidence,
+        )
 
 
 def replay_route(

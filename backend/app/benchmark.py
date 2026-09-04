@@ -7,12 +7,12 @@ from typing import Any
 from .evaluation import evaluate_text
 
 
-DATASET = Path(__file__).resolve().parents[2] / "datasets" / "benchmark-v1.jsonl"
+DATASET = Path(__file__).resolve().parents[2] / "benchmarks" / "routing-bench-v1.json"
 
 
 def load_cases() -> list[dict[str, Any]]:
     with DATASET.open(encoding="utf-8") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
+        return json.load(handle)
 
 
 def score_outputs(outputs: dict[str, str]) -> dict[str, Any]:
