@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import benchmarkCases from "@/benchmarks/routing-bench-v1.json";
 import { db, databaseConfigured } from "../../../lib/db";
 import { average, p95, rate } from "../../../lib/metrics";
-import { AttemptResult, runProviderCascade, providerOrder } from "@/lib/providers";
+import { AttemptResult, runProviderCascade, providerOrder, type ProviderName } from "@/lib/providers";
 import { BENCHMARK_GRADER_VERSION, gradeBenchmarkCase, type BenchmarkCase } from "@/lib/benchmark-grader";
 import { MAX_BENCHMARK_BATCH_SIZE, normalizeBenchmarkBatch, TOTAL_BENCHMARK_CASES } from "@/lib/benchmark-batching";
 
@@ -113,19 +113,34 @@ export async function POST(request: Request) {
     }
 
     const started = performance.now();
-    const tasks = batchCases.flatMap(item => providerOrder().map(provider => ({ item, provider })));
+    // Honor `?allProviders=true` to exercise every configured provider per
+    // case so the EvidenceRank leaderboard reflects the full 4-provider mix.
+    // Default `false` keeps the cost-first cascade so production traffic stays
+    // optimal. Benchmark workflows opt in via the query string.
+    const allProviders = (() => {
+      try {
+        const u = new URL(request.url);
+        return u.searchParams.get("allProviders") === "true";
+      } catch {
+        return false;
+      }
+    })();
+
+    const tasks = allProviders
+      ? batchCases.flatMap(item => providerOrder().map(provider => ({ item, provider })))
+      : batchCases.map(item => ({ item, provider: null as ProviderName | null }));
 
     const allProviderResults = await mapWithConcurrency(tasks, BENCHMARK_CONCURRENCY * 2, async ({ item, provider }) => {
       const cascade = await runProviderCascade(promptFor(item), 120, {
         attemptTimeoutMs: BENCHMARK_ATTEMPT_TIMEOUT_MS,
         totalDeadlineMs: BENCHMARK_CASE_DEADLINE_MS,
         maxModelsPerProvider: BENCHMARK_MAX_MODELS_PER_PROVIDER,
-        costFirst: BENCHMARK_COST_FIRST,
-        restrictToProviders: [provider],
+        costFirst: allProviders ? false : BENCHMARK_COST_FIRST,
+        restrictToProviders: provider ? [provider] : undefined,
         respectCircuitBreaker: false,
       });
       if (!cascade.result) {
-        return { id: item.id, category: item.category, status: "infra_failed" as const, quality: 0, latencyMs: null, provider: provider, model: null, fallbacks: cascade.attempts.length, attempts: cascade.attempts } satisfies BenchmarkResult;
+        return { id: item.id, category: item.category, status: "infra_failed" as const, quality: 0, latencyMs: null, provider: provider ?? null, model: null, fallbacks: cascade.attempts.length, attempts: cascade.attempts } satisfies BenchmarkResult;
       }
       const evaluation = gradeBenchmarkCase(item, cascade.result.output);
       return { id: item.id, category: item.category, status: evaluation.passed ? "passed" : "failed", quality: evaluation.quality, latencyMs: cascade.result.latencyMs, provider: cascade.result.provider, model: cascade.result.model, fallbacks: cascade.attempts.filter((attempt) => attempt.outcome !== "success").length, attempts: cascade.attempts, output: cascade.result.output, evaluation } satisfies BenchmarkResult;
