@@ -9,9 +9,9 @@ const page = await readFile("app/page.tsx", "utf8");
 // - Explainable decisions ("why this model?")
 assert.match(page, /fetch\("\/api\/evidence"\)/);
 assert.match(page, /EvidenceRank Leaderboard/);
-assert.match(page, /AGENT EVAL ROUTER/);
-assert.match(page, /Why did you choose this model\?/);
-assert.match(page, /DECISIONS/);
-assert.match(page, /Run Agent/);
+assert.match(page, /EVIDENCE ROUTER/);
+assert.match(page, /DECISION RATIONALE/);
+assert.match(page, /EVIDENCE TRACE/);
+assert.match(page, /\[ Solve → \]/);
 
 console.log("Phase 1 product contract: PASS");
