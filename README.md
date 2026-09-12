@@ -1,4 +1,5 @@
 # Agent Eval Router — Evidence-Based LLM Routing
+> **Role:** AI Engineer (not senior/staff) | Agentic AI / RAG / LLM
 
 > We route LLM requests to the model that actual wins — proven by empirical evaluation, not marketing claims.
 
