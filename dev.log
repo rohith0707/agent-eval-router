@@ -1,0 +1,460 @@
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\Rohith Chintu\Top_Product\package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * C:\Users\Rohith Chintu\Top_Product\agent-eval-router\package-lock.json
+
+   ▲ Next.js 15.5.12
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.29.248:3000
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 2.2s
+ ○ Compiling / ...
+ ✓ Compiled / in 739ms (586 modules)
+ GET / 200 in 1313ms
+ GET / 200 in 64ms
+ ○ Compiling /api/evidence ...
+ ✓ Compiled /api/evidence in 2.3s (632 modules)
+ GET / 200 in 1461ms
+ GET /api/evidence 200 in 5671ms
+ GET /favicon.ico 200 in 7607ms
+ GET / 200 in 43ms
+ ✓ Compiled /api/agent in 286ms (615 modules)
+ POST /api/agent 200 in 3843ms
+ ✓ Compiled in 129ms (243 modules)
+ ✓ Compiled in 215ms (243 modules)
+ GET / 200 in 215ms
+ GET / 200 in 87ms
+ ✓ Compiled in 117ms (243 modules)
+ GET / 200 in 20ms
+ POST /api/agent 200 in 3353ms
+ GET / 200 in 335ms
+ ✓ Compiled /api/evidence in 342ms (403 modules)
+ ✓ Compiled (405 modules)
+ GET /api/evidence 200 in 1910ms
+ GET /favicon.ico 200 in 2372ms
+ POST /api/agent 200 in 1037ms
+ ○ Compiling /compare ...
+ ✓ Compiled /compare in 890ms (641 modules)
+ GET /compare 200 in 1014ms
+ ○ Compiling /api/compare ...
+ ✓ Compiled /api/compare in 663ms (643 modules)
+ GET /favicon.ico 200 in 2925ms
+ GET /api/compare?baseline=previous&head=current 200 in 3551ms
+ GET /api/compare?baseline=previous&head=current 200 in 335ms
+ ✓ Compiled in 896ms (613 modules)
+ GET /compare 200 in 218ms
+ ✓ Compiled in 621ms (613 modules)
+ ✓ Compiled in 363ms (245 modules)
+ GET /compare 200 in 366ms
+ GET /compare 200 in 46ms
+ ✓ Compiled in 221ms (245 modules)
+ ✓ Compiled in 214ms (245 modules)
+ GET /compare 200 in 222ms
+ GET /compare 200 in 214ms
+ ✓ Compiled in 194ms (245 modules)
+ GET /compare 200 in 47ms
+ ✓ Compiled /[...slug] in 1025ms (627 modules)
+ GET /compare 200 in 5836ms
+ GET /compare 200 in 3656ms
+ ✓ Compiled /api/meta in 481ms (632 modules)
+ GET /api/meta 200 in 684ms
+ GET /api/meta 200 in 686ms
+ ✓ Compiled in 335ms (243 modules)
+ ✓ Compiled in 1712ms (243 modules)
+ ✓ Compiled in 339ms (243 modules)
+ GET /compare 200 in 2375ms
+ GET /compare 200 in 994ms
+ GET /compare 200 in 2830ms
+ ✓ Compiled in 376ms (243 modules)
+ ⨯ SyntaxError: Unexpected end of JSON input
+    at JSON.parse (<anonymous>) {
+  page: '/compare'
+}
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 1816ms (992 modules)
+ GET /compare 500 in 2459ms
+ GET /compare 200 in 2444ms
+ GET /compare 200 in 1026ms
+ GET /compare 200 in 993ms
+ GET /compare 200 in 2896ms
+ GET /api/meta 200 in 74ms
+ GET /favicon.ico 200 in 2110ms
+ ✓ Compiled /api/agent in 353ms (599 modules)
+ POST /api/agent 200 in 3262ms
+ ✓ Compiled in 926ms (395 modules)
+ ✓ Compiled in 1844ms (395 modules)
+ GET /compare 200 in 1099ms
+ GET /compare 200 in 3196ms
+ ✓ Compiled in 432ms (394 modules)
+ ✓ Compiled in 778ms (394 modules)
+ ✓ Compiled in 1692ms (394 modules)
+ GET /compare 200 in 3870ms
+ GET /compare 200 in 998ms
+ GET /compare 200 in 2707ms
+ GET / 200 in 272ms
+ ✓ Compiled in 384ms (394 modules)
+ ✓ Compiled in 332ms (394 modules)
+ GET /compare 200 in 986ms
+ GET /compare 200 in 4002ms
+ POST /api/agent 200 in 2378ms
+ ✓ Compiled in 221ms (394 modules)
+ ✓ Compiled in 1658ms (394 modules)
+ ✓ Compiled in 280ms (394 modules)
+ GET /compare 200 in 3533ms
+ GET /compare 200 in 2515ms
+ GET /compare 200 in 3495ms
+ GET / 200 in 105ms
+ ○ Compiling /agent ...
+ ✓ Compiled /agent in 638ms (870 modules)
+ GET /agent 200 in 988ms
+ ✓ Compiled /live in 405ms (877 modules)
+ GET /live 200 in 591ms
+ ✓ Compiled in 235ms (398 modules)
+ ✓ Compiled in 1539ms (398 modules)
+ ✓ Compiled in 218ms (398 modules)
+ GET /compare 200 in 3983ms
+ GET /compare 200 in 5801ms
+ GET /compare 200 in 5033ms
+ ✓ Compiled /api/agent in 240ms (502 modules)
+ POST /api/agent 200 in 2647ms
+ ✓ Compiled in 299ms (398 modules)
+ ✓ Compiled in 1717ms (398 modules)
+ ⨯ SyntaxError: Unexpected end of JSON input
+    at JSON.parse (<anonymous>) {
+  page: '/compare'
+}
+ ✓ Compiled /_error in 941ms (982 modules)
+ GET /compare 500 in 1325ms
+ GET /compare 200 in 4642ms
+ GET /compare 200 in 1071ms
+ GET /compare 200 in 2711ms
+ ✓ Compiled /api/meta in 233ms (599 modules)
+ GET /api/meta 200 in 296ms
+ GET /favicon.ico 200 in 2478ms
+ GET / 200 in 149ms
+ ✓ Compiled in 276ms (399 modules)
+ ✓ Compiled in 1564ms (399 modules)
+ GET /compare 200 in 1061ms
+ GET /compare 200 in 2860ms
+ GET / 200 in 85ms
+ ✓ Compiled in 390ms (398 modules)
+ ✓ Compiled in 390ms (398 modules)
+ ✓ Compiled in 1420ms (398 modules)
+ GET /compare 200 in 1011ms
+ GET /compare 200 in 2984ms
+ GET /compare 200 in 1800ms
+ POST /api/agent 200 in 4081ms
+ ✓ Compiled in 288ms (398 modules)
+ ✓ Compiled in 1712ms (398 modules)
+ ✓ Compiled in 199ms (398 modules)
+ GET /compare 200 in 2634ms
+ GET /compare 200 in 2829ms
+ GET /compare 200 in 2953ms
+ GET / 200 in 62ms
+ ✓ Compiled /api/evidence in 425ms (502 modules)
+ GET /api/evidence 200 in 2681ms
+ GET /favicon.ico 200 in 2671ms
+ GET /compare 200 in 6384ms
+ ✓ Compiled /api/meta in 91ms (504 modules)
+ GET /api/meta 200 in 1709ms
+ GET /favicon.ico 200 in 2624ms
+ GET / 200 in 109ms
+ GET /api/evidence 200 in 1421ms
+ GET /api/evidence 200 in 745ms
+ GET /favicon.ico 200 in 2170ms
+ GET / 200 in 144ms
+ GET /api/evidence 200 in 525ms
+ GET /favicon.ico 200 in 2191ms
+ ✓ Compiled /api/agent in 439ms (506 modules)
+ POST /api/agent 200 in 3439ms
+ ✓ Compiled in 1031ms (881 modules)
+ GET / 200 in 686ms
+ ✓ Compiled /api/evidence in 920ms (900 modules)
+ GET / 200 in 320ms
+ GET /api/evidence 200 in 3755ms
+ ✓ Compiled in 377ms (398 modules)
+ GET / 200 in 70ms
+ ✓ Compiled in 504ms (398 modules)
+ ✓ Compiled in 440ms (398 modules)
+ GET / 200 in 433ms
+ GET / 200 in 58ms
+ ✓ Compiled in 1096ms (881 modules)
+ GET / 200 in 330ms
+ ✓ Compiled in 501ms (398 modules)
+ GET / 200 in 146ms
+ GET / 200 in 276ms
+ ✓ Compiled /api/evidence in 106ms (502 modules)
+ GET /api/evidence 200 in 3411ms
+ GET /favicon.ico 200 in 4152ms
+ ✓ Compiled /api/agent in 504ms (504 modules)
+ GET / 200 in 211ms
+ POST /api/agent 200 in 5209ms
+ ✓ Compiled in 1378ms (881 modules)
+ GET / 200 in 341ms
+ ✓ Compiled in 1177ms (881 modules)
+ GET / 200 in 161ms
+ GET / 200 in 377ms
+ ✓ Compiled /api/evidence in 301ms (502 modules)
+ GET /api/evidence 200 in 3481ms
+ GET /favicon.ico 200 in 5356ms
+ ✓ Compiled /api/agent in 298ms (504 modules)
+ POST /api/agent 200 in 3068ms
+ ✓ Compiled in 410ms (881 modules)
+ ✓ Compiled in 283ms (398 modules)
+ GET / 200 in 275ms
+ GET / 200 in 25ms
+ ✓ Compiled in 1145ms (881 modules)
+ GET / 200 in 146ms
+ ✓ Compiled in 1005ms (881 modules)
+ GET / 200 in 127ms
+ ⨯ ./app/page.tsx
+Error:   [31mx[0m Expected '</', got 'numeric literal (0.02, .02)'
+     ,-[[36;1;4mC:\Users\Rohith Chintu\Top_Product\agent-eval-router\app\page.tsx[0m:433:1]
+ [2m430[0m |                       <div style={{ background: "#0a0f1d", padding: "12px 14px", borderRadius: 6, border: "1px solid #1e293b" }}>
+ [2m431[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4 }}>COST</div>
+ [2m432[0m |                         <div style={{ fontSize: 18, fontWeight: 800, color: "#60a5fa" }}>${decision.result.cost.toFixed(4)}</div>
+ [2m433[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>< $0.02 budget</div>
+     : [35;1m                                                                                          ^^^[0m
+ [2m434[0m |                       </div>
+ [2m435[0m |                     </div>
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/page.tsx
+ ○ Compiling /_error ...
+ ⨯ ./app/page.tsx
+Error:   [31mx[0m Expected '</', got 'numeric literal (0.02, .02)'
+     ,-[[36;1;4mC:\Users\Rohith Chintu\Top_Product\agent-eval-router\app\page.tsx[0m:433:1]
+ [2m430[0m |                       <div style={{ background: "#0a0f1d", padding: "12px 14px", borderRadius: 6, border: "1px solid #1e293b" }}>
+ [2m431[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4 }}>COST</div>
+ [2m432[0m |                         <div style={{ fontSize: 18, fontWeight: 800, color: "#60a5fa" }}>${decision.result.cost.toFixed(4)}</div>
+ [2m433[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>< $0.02 budget</div>
+     : [35;1m                                                                                          ^^^[0m
+ [2m434[0m |                       </div>
+ [2m435[0m |                     </div>
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/page.tsx
+ GET / 500 in 5784ms
+ GET / 500 in 430ms
+ GET /favicon.ico 500 in 24ms
+ ⨯ ./app/page.tsx
+Error:   [31mx[0m Expected '</', got 'numeric literal (0.02, .02)'
+     ,-[[36;1;4mC:\Users\Rohith Chintu\Top_Product\agent-eval-router\app\page.tsx[0m:433:1]
+ [2m430[0m |                       <div style={{ background: "#0a0f1d", padding: "12px 14px", borderRadius: 6, border: "1px solid #1e293b" }}>
+ [2m431[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4 }}>COST</div>
+ [2m432[0m |                         <div style={{ fontSize: 18, fontWeight: 800, color: "#60a5fa" }}>${decision.result.cost.toFixed(4)}</div>
+ [2m433[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>< $0.02 budget</div>
+     : [35;1m                                                                                          ^^^[0m
+ [2m434[0m |                       </div>
+ [2m435[0m |                     </div>
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/page.tsx
+ GET /_next/static/webpack/c6732380ea4d88cd.webpack.hot-update.json 500 in 753ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 500 in 74ms
+ GET /favicon.ico 500 in 21ms
+ ⨯ ./app/page.tsx
+Error:   [31mx[0m Expected '</', got 'numeric literal (0.02, .02)'
+     ,-[[36;1;4mC:\Users\Rohith Chintu\Top_Product\agent-eval-router\app\page.tsx[0m:433:1]
+ [2m430[0m |                       <div style={{ background: "#0a0f1d", padding: "12px 14px", borderRadius: 6, border: "1px solid #1e293b" }}>
+ [2m431[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4 }}>COST</div>
+ [2m432[0m |                         <div style={{ fontSize: 18, fontWeight: 800, color: "#60a5fa" }}>${decision.result.cost.toFixed(4)}</div>
+ [2m433[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>< $0.02 budget</div>
+     : [35;1m                                                                                          ^^^[0m
+ [2m434[0m |                       </div>
+ [2m435[0m |                     </div>
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/page.tsx
+ GET /_next/static/webpack/c6732380ea4d88cd.webpack.hot-update.json 500 in 859ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 500 in 47ms
+ GET /favicon.ico 500 in 19ms
+ ⨯ ./app/page.tsx
+Error:   [31mx[0m Expected '</', got 'numeric literal (0.02, .02)'
+     ,-[[36;1;4mC:\Users\Rohith Chintu\Top_Product\agent-eval-router\app\page.tsx[0m:433:1]
+ [2m430[0m |                       <div style={{ background: "#0a0f1d", padding: "12px 14px", borderRadius: 6, border: "1px solid #1e293b" }}>
+ [2m431[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4 }}>COST</div>
+ [2m432[0m |                         <div style={{ fontSize: 18, fontWeight: 800, color: "#60a5fa" }}>${decision.result.cost.toFixed(4)}</div>
+ [2m433[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>< $0.02 budget</div>
+     : [35;1m                                                                                          ^^^[0m
+ [2m434[0m |                       </div>
+ [2m435[0m |                     </div>
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/page.tsx
+ GET /_next/static/webpack/c6732380ea4d88cd.webpack.hot-update.json 500 in 811ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 500 in 81ms
+ GET /favicon.ico 500 in 20ms
+ ⨯ ./app/page.tsx
+Error:   [31mx[0m Expected '</', got 'numeric literal (0.02, .02)'
+     ,-[[36;1;4mC:\Users\Rohith Chintu\Top_Product\agent-eval-router\app\page.tsx[0m:433:1]
+ [2m430[0m |                       <div style={{ background: "#0a0f1d", padding: "12px 14px", borderRadius: 6, border: "1px solid #1e293b" }}>
+ [2m431[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4 }}>COST</div>
+ [2m432[0m |                         <div style={{ fontSize: 18, fontWeight: 800, color: "#60a5fa" }}>${decision.result.cost.toFixed(4)}</div>
+ [2m433[0m |                         <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>< $0.02 budget</div>
+     : [35;1m                                                                                          ^^^[0m
+ [2m434[0m |                       </div>
+ [2m435[0m |                     </div>
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/page.tsx
+ GET /_next/static/webpack/c6732380ea4d88cd.webpack.hot-update.json 500 in 1086ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 500 in 73ms
+ GET /favicon.ico 500 in 23ms
+ ✓ Compiled /_error in 527ms (397 modules)
+ ✓ Compiled in 426ms (397 modules)
+ GET / 500 in 419ms
+ GET /favicon.ico 500 in 23ms
+ ✓ Compiled in 2.3s (977 modules)
+ GET /_next/static/webpack/c6732380ea4d88cd.webpack.hot-update.json 200 in 8994ms
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET / 200 in 125ms
+ ⨯ Failed to generate static paths for /[...slug]:
+SyntaxError: Invalid or unexpected token
+    at <unknown> (C:\Users\Rohith Chintu\Top_Product\agent-eval-router\.next\server\vendor-chunks\next.js:821) {
+  type: 'SyntaxError'
+}
+ ✓ Compiled /api/evidence in 407ms (597 modules)
+ GET /favicon.ico 200 in 2961ms
+ GET /api/evidence 200 in 4054ms
+ ✓ Compiled in 494ms (399 modules)
+ ✓ Compiled in 535ms (399 modules)
+ GET / 200 in 524ms
+ GET / 200 in 65ms
+ ✓ Compiled /api/agent in 392ms (597 modules)
+ POST /api/agent 200 in 4924ms
+ POST /api/agent?demo=true 200 in 641ms
+ ✓ Compiled in 1456ms (977 modules)
+ GET / 200 in 337ms
+ ✓ Compiled in 547ms (399 modules)
+ ✓ Compiled in 372ms (399 modules)
+ GET / 200 in 365ms
+ GET / 200 in 62ms
+ ✓ Compiled in 408ms (399 modules)
+ GET / 200 in 405ms
+ ✓ Compiled in 435ms (399 modules)
+ GET / 200 in 72ms
+ GET / 200 in 490ms
+ ✓ Compiled /api/evidence in 328ms (597 modules)
+ GET /api/evidence 200 in 3206ms
+ GET /favicon.ico 200 in 5136ms
+ ✓ Compiled /api/agent in 278ms (599 modules)
+ GET / 200 in 230ms
+ POST /api/agent 200 in 2080ms
+ ✓ Compiled in 1299ms (977 modules)
+ GET / 200 in 393ms
+ ✓ Compiled in 1252ms (977 modules)
+ GET / 200 in 278ms
+ ✓ Compiled in 503ms (399 modules)
+ ✓ Compiled in 491ms (399 modules)
+ GET / 200 in 492ms
+ GET / 200 in 83ms
+ GET / 200 in 348ms
+ ✓ Compiled /api/evidence in 317ms (597 modules)
+ GET /api/evidence 200 in 3165ms
+ GET /favicon.ico 200 in 4837ms
+ ✓ Compiled /api/agent in 395ms (599 modules)
+ GET / 200 in 270ms
+ POST /api/agent 200 in 2138ms
+ GET / 200 in 313ms
+ GET /api/evidence 200 in 809ms
+ GET /favicon.ico 200 in 2401ms
+ GET / 200 in 104ms
+ GET /api/evidence 200 in 1908ms
+ GET /favicon.ico 200 in 2239ms
+ POST /api/agent 200 in 1671ms
+ ✓ Compiled in 1345ms (977 modules)
+ GET / 200 in 354ms
+ ✓ Compiled in 502ms (399 modules)
+ GET / 200 in 466ms
+ ✓ Compiled in 501ms (399 modules)
+ GET / 200 in 75ms
+ ✓ Compiled in 1497ms (977 modules)
+ GET / 200 in 254ms
+ ✓ Compiled in 530ms (399 modules)
+ GET / 200 in 96ms
+ GET / 200 in 492ms
+ ✓ Compiled /api/evidence in 352ms (597 modules)
+ ⨯ Failed to generate static paths for /[...slug]:
+TypeError: Cannot read properties of undefined (reading 'length')
+    at <unknown> (C:\Users\Rohith Chintu\Top_Product\agent-eval-router\.next\server\app\[...slug]\page.js:346:47)
+    at Object.<anonymous> (C:\Users\Rohith Chintu\Top_Product\agent-eval-router\.next\server\app\[...slug]\page.js:349:3) {
+  type: 'TypeError'
+}
+ ✓ Compiled /api/agent in 261ms (599 modules)
+ GET / 200 in 282ms
+ ⨯ [TypeError: __webpack_modules__[moduleId] is not a function] {
+  digest: '2592309625'
+}
+ GET /favicon.ico 500 in 5122ms
+ POST /api/agent 200 in 4067ms
+ GET /api/evidence 200 in 5330ms
+ POST /api/agent 200 in 2031ms
+ POST /api/agent 200 in 3840ms
+ ✓ Compiled in 988ms (977 modules)
+ GET / 200 in 396ms
+ ✓ Compiled in 819ms (977 modules)
+ GET / 200 in 159ms
+ GET / 200 in 355ms
+ ✓ Compiled /api/evidence in 310ms (597 modules)
+ ✓ Compiled /api/agent in 248ms (599 modules)
+ GET / 200 in 252ms
+ GET /api/evidence 200 in 3750ms
+ ⨯ [TypeError: __webpack_modules__[moduleId] is not a function] {
+  digest: '2592309625'
+}
+ POST /api/agent 200 in 3280ms
+ GET /favicon.ico 500 in 6017ms
+ POST /api/agent 200 in 2874ms
+ ✓ Compiled in 1330ms (977 modules)
+ GET / 200 in 332ms
+ ✓ Compiled in 444ms (399 modules)
+ GET / 200 in 71ms
+ ✓ Compiled in 475ms (399 modules)
+ GET / 200 in 102ms
+ ✓ Compiled in 501ms (399 modules)
+ ✓ Compiled in 480ms (399 modules)
+ GET / 200 in 480ms
+ GET / 200 in 67ms
+ GET / 200 in 396ms
+ ✓ Compiled /api/evidence in 320ms (597 modules)
+ ✓ Compiled /api/agent in 243ms (599 modules)
+ GET / 200 in 198ms
+ GET /api/evidence 200 in 3364ms
+ ⨯ [TypeError: __webpack_modules__[moduleId] is not a function] {
+  digest: '2592309625'
+}
+ GET /favicon.ico 500 in 5373ms
+ POST /api/agent 200 in 5116ms

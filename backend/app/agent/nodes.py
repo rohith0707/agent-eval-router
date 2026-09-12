@@ -7,6 +7,7 @@ from typing import Any
 
 from ..router import DEFAULT_CANDIDATES, select_with_constraints
 from ..models import ConstraintSet, AttemptRecord, TrajectoryStep
+from .history import history_store
 
 TASK_TYPES = {"reasoning", "rag", "tool_calling", "safety", "auto"}
 
@@ -48,15 +49,20 @@ async def plan_node(state: dict) -> dict:
 
 
 async def route_node(state: dict) -> dict:
-    """Select the best provider/model using constraint-aware routing."""
+    """Select the best provider/model using constraint-aware routing informed by past execution history."""
     plan = state.get("plan", {})
+    task_type = plan.get("task_type", "auto")
+
+    # Retrieve real execution history for this task_type to use as historical evidence
+    evidence = history_store.get_evidence(task_type)
+
     constraints = ConstraintSet(
         quality_floor=0.7,
         max_latency_ms=5000,
         max_cost_usd=0.01,
         reliability_floor=0.8,
     )
-    decision = select_with_constraints(constraints, candidates=DEFAULT_CANDIDATES, evidence=[])
+    decision = select_with_constraints(constraints, candidates=DEFAULT_CANDIDATES, evidence=evidence)
     state["provider"] = decision.selected.provider
     state["model"] = decision.selected.model
     state["trajectory"] = [
@@ -64,7 +70,7 @@ async def route_node(state: dict) -> dict:
         {
             "step": "route",
             "status": "done",
-            "detail": f"{decision.selected.provider}/{decision.selected.model}: {decision.reason}",
+            "detail": f"{decision.selected.provider}/{decision.selected.model} (learned from {len(evidence)} runs): {decision.reason}",
         },
     ]
     return state
@@ -127,6 +133,7 @@ async def evaluate_node(state: dict) -> dict:
     if not attempts:
         state["status"] = "failed"
         state["failure_class"] = "infra_failed"
+        history_store.save_run(state)
         return state
     last = attempts[-1]
     quality = last.get("quality", 0.0)
@@ -146,4 +153,8 @@ async def evaluate_node(state: dict) -> dict:
             "detail": f"quality={quality:.3f}, status={state['status']}",
         },
     ]
+
+    # Save to execution history, closing the learning loop so subsequent tasks improve!
+    history_store.save_run(state)
+
     return state

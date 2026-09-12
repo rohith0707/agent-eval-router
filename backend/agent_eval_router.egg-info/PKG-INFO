@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: agent-eval-router
+Version: 0.2.0
+Summary: Python-first evaluation and routing engine for LLM and agent workloads
+Requires-Python: >=3.11
+Requires-Dist: fastapi<1.0,>=0.116
+Requires-Dist: uvicorn[standard]<1.0,>=0.35
+Requires-Dist: pydantic<3.0,>=2.11
+Requires-Dist: httpx<1.0,>=0.28
+Provides-Extra: dev
+Requires-Dist: pytest<9.0,>=8.4; extra == "dev"
+Requires-Dist: pytest-asyncio<2.0,>=1.1; extra == "dev"

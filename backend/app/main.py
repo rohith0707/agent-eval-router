@@ -75,8 +75,9 @@ async def generate(request: EvaluationRequest) -> dict:
         },
     }
 
-from .models import ReplayRequest, ReplayResult
+from .models import ReplayRequest, ReplayResult, AgentRequest
 from .replay import ReplayEngine
+from .agent.graph import run_agent
 
 @app.post("/v1/replay")
 async def replay(request: ReplayRequest) -> ReplayResult:
@@ -86,3 +87,20 @@ async def replay(request: ReplayRequest) -> ReplayResult:
         task_type=request.task_type,
         constraints=request.constraints,
     )
+
+@app.post("/v1/agent/run")
+async def run_autonomous_agent(request: AgentRequest) -> dict:
+    """Runs the autonomous agent, which routes automatically using its historical execution knowledge."""
+    state = await run_agent(task=request.task, task_type=request.task_type)
+    return {
+        "status": state.get("status"),
+        "task": state.get("task"),
+        "task_type": state.get("task_type"),
+        "provider": state.get("provider"),
+        "model": state.get("model"),
+        "quality": state.get("quality"),
+        "latency_ms": state.get("latency_ms"),
+        "cost_usd": state.get("cost_usd"),
+        "output": state.get("output"),
+        "trajectory": state.get("trajectory", []),
+    }
