@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from .graph import build_agent_graph, run_agent
-from .state import AgentState, AttemptRecord, ToolCall, TrajectoryStep
+from .state import AgentState
+from ..models import AttemptRecord, ToolCall, TrajectoryStep
 
 __all__ = [
     "build_agent_graph",
