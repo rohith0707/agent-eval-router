@@ -24,13 +24,13 @@ class RoutingDecision(BaseModel):
     passed: bool
     reason: str
 
-# ── Phase 3: Constraint-Aware Evidence-Driven Routing ────────────────────────
 
 class ConstraintSet(BaseModel):
     quality_floor: float = Field(default=0.7, ge=0, le=1)
     max_latency_ms: int = Field(default=5000, gt=0)
     max_cost_usd: float = Field(default=0.01, ge=0)
     reliability_floor: float = Field(default=0.8, ge=0, le=1)
+
 
 class EvidenceRow(BaseModel):
     task_type: str
@@ -42,6 +42,7 @@ class EvidenceRow(BaseModel):
     reliability: float = Field(ge=0, le=1)
     passed: bool
 
+
 class ReplayResult(BaseModel):
     provider: str
     model: str
@@ -50,31 +51,37 @@ class ReplayResult(BaseModel):
     evidence_used: int = Field(ge=0)
     constraints: ConstraintSet
 
+
 class ReplayRequest(BaseModel):
     task: str = Field(min_length=1)
     task_type: str = Field(default="auto")
     constraints: ConstraintSet = Field(default_factory=ConstraintSet)
 
-# ── Phase 4: Agent State ─────────────────────────────────────────────────────
 
 class AttemptRecord(BaseModel):
     provider: str
     model: str
-    latency_ms: int
-    cost_usd: float
-    quality: float
+    latency_ms: int = Field(ge=0)
+    cost_usd: float = Field(ge=0)
+    quality: float = Field(default=0.0, ge=0, le=1)
     status: str
+    failure_class: str | None = None
+
 
 class ToolCall(BaseModel):
     tool: str
     input_data: dict
     output: str | None = None
     success: bool = True
+    latency_ms: int | None = None
+    failure_class: str | None = None
+
 
 class TrajectoryStep(BaseModel):
     step: str
     status: str
     detail: str | None = None
+
 
 class AgentState(BaseModel):
     task: str
@@ -91,7 +98,17 @@ class AgentState(BaseModel):
     trajectory: list[TrajectoryStep] = Field(default_factory=list)
     status: str = "pending"
     failure_class: str | None = None
+    decision: dict | None = None
+    decision_id: str | None = None
+    policy_version: str | None = None
+    decision_action: str | None = None
+    evidence_count: int = 0
+    max_cost_usd: float = Field(default=0.01, ge=0)
+    max_tokens: int = Field(default=512, gt=0, le=8192)
+
 
 class AgentRequest(BaseModel):
     task: str = Field(min_length=1)
     task_type: str = Field(default="auto")
+    max_cost_usd: float = Field(default=0.01, ge=0)
+    max_tokens: int = Field(default=512, gt=0, le=8192)
