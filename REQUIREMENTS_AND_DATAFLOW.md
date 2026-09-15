@@ -1,8 +1,10 @@
-# Requirements & Dataflow — Agent Decision Engine
+# Requirements & Dataflow — Evidence-Driven Agent Control Plane
 
 ## 1. System boundary
 
-The product is a **runtime decision layer**, not the agent itself. An external or internal agent submits an intended action; the decision engine determines whether and how that action may execute.
+The product is a **runtime control plane**, not a replacement agent framework. An internal or external agent submits an intended action/task; the control plane determines whether and how that work may proceed, verifies the result, records evidence, and decides what happens next.
+
+Multi-agent workers may be used inside a bounded workflow, but they are implementation details rather than the product boundary.
 
 ```text
 Agent / User
@@ -12,49 +14,52 @@ Agent / User
     |
     v
 [2] Task + Action Analysis
-    |
-    +----> risk / budget / latency / quality / autonomy
-    |
-    v
-[3] Evidence Retrieval <---- PostgreSQL Evidence Store
-    |
-    v
-[4] Candidate Generation
     |       |
-    |       +--> models
-    |       +--> tools
-    |       +--> fallback strategies
+    |       +--> risk / budget / latency / quality / autonomy
+    |       +--> loop limits
     |
     v
-[5] Policy + Constraint Evaluation
+[3] Policy Evaluation
+    |
+    v
+[4] Evidence Retrieval <---- Evidence Store
+    |
+    v
+[5] Candidate / Strategy Generation
+    |       |
+    |       +--> model strategy
+    |       +--> tool strategy
+    |       +--> worker/repair strategy where workflow requires it
     |
     v
 [6] Decision Engine
     |
-    +--> ALLOW
-    +--> ROUTE
-    +--> RETRY
-    +--> FALLBACK
-    +--> ESCALATE
-    +--> BLOCK
+    +--> ALLOW / ROUTE / RETRY / FALLBACK / ESCALATE / BLOCK
     |
     v
 [7] Guarded Execution
     |       |
     |       +--> model adapter
-    |       +--> tool adapter
-    |       +--> timeout / retry / circuit breaker
+    |       +--> bounded tool adapter
+    |       +--> optional bounded specialist worker
     |
     v
-[8] Outcome + Trajectory
+[8] Verification / Evaluation
     |
     v
-[9] Evaluation
+[9] Decision Ledger + Evidence
     |
     v
-[10] Evidence Persistence
-    |
-    +-------------------------------> future decisions
+[10] Loop Controller
+     |
+     +--> COMPLETE
+     +--> REPAIR
+     +--> REPLAN
+     +--> RETRY
+     +--> ESCALATE
+     +--> ABORT
+     |
+     +--------------------> next bounded decision
 ```
 
 ## 2. Required data contracts
@@ -73,7 +78,10 @@ Agent / User
   "latency_budget_ms": 0,
   "cost_budget_usd": 0.0,
   "risk_class": "low | medium | high | critical",
-  "autonomy_level": "auto | approval | blocked"
+  "autonomy_level": "auto | approval | blocked",
+  "max_iterations": 0,
+  "max_failures": 0,
+  "max_runtime_ms": 0
 }
 ```
 
@@ -82,6 +90,8 @@ Agent / User
 ```json
 {
   "evidence_id": "string",
+  "run_id": "string",
+  "decision_id": "string|null",
   "task_type": "string",
   "model": "string|null",
   "tool": "string|null",
@@ -90,7 +100,8 @@ Agent / User
   "latency_ms": 0,
   "cost_usd": 0.0,
   "failure_class": "string|null",
-  "policy_version": "string",
+  "verification": {"status": "pass | fail | partial"},
+  "provenance": "MEASURED | SYNTHETIC | FIXTURE | TARGET | DESIGN",
   "created_at": "ISO-8601"
 }
 ```
@@ -104,9 +115,12 @@ Agent / User
   "action": "ALLOW | ROUTE | RETRY | FALLBACK | ESCALATE | BLOCK",
   "selected_model": "string|null",
   "selected_tool": "string|null",
+  "selected_strategy": "string|null",
   "policy_version": "string",
   "risk_class": "string",
+  "autonomy_level": "auto | approval | blocked",
   "estimated_cost_usd": 0.0,
+  "constraints": {},
   "reason_codes": ["string"],
   "evidence_ids": ["string"],
   "candidate_scores": {},
@@ -114,42 +128,69 @@ Agent / User
 }
 ```
 
-## 3. Decision sequence
+### VerificationRecord
 
-```text
-1. Agent submits intended action.
-2. Validate request schema and run identity.
-3. Classify task/action and risk.
-4. Load applicable policy.
-5. Retrieve relevant historical evidence.
-6. Generate eligible model/tool candidates.
-7. Remove candidates forbidden by policy.
-8. Score remaining candidates against capability, evidence, reliability, cost and constraints.
-9. Determine autonomy requirement.
-10. Emit DecisionRecord before execution.
-11. Execute only the selected/allowed action.
-12. Capture raw operational metadata without secrets.
-13. Classify failure if execution fails.
-14. Retry or fallback only within policy limits.
-15. Evaluate outcome.
-16. Persist EvidenceRecord linked to DecisionRecord.
-17. Update aggregate evidence used by future decisions.
+```json
+{
+  "verification_id": "string",
+  "run_id": "string",
+  "decision_id": "string",
+  "status": "pass | fail | partial",
+  "checks": [{"name": "string", "status": "pass | fail", "evidence_ref": "string|null"}],
+  "reason_codes": ["string"],
+  "created_at": "ISO-8601"
+}
 ```
 
-## 4. Policy evaluation order
+### LoopState
 
-The runtime SHOULD evaluate in this order:
+```json
+{
+  "run_id": "string",
+  "iteration": 1,
+  "max_iterations": 5,
+  "spent_cost_usd": 0.0,
+  "max_cost_usd": 2.0,
+  "elapsed_ms": 0,
+  "max_runtime_ms": 120000,
+  "consecutive_failures": 0,
+  "max_failures": 3,
+  "status": "RUNNING | COMPLETE | REPAIR | REPLAN | ESCALATE | ABORT"
+}
+```
+
+## 3. Decision sequence
+
+1. Validate request and run identity.
+2. Normalize task/action requirements.
+3. Classify risk and autonomy.
+4. Load applicable policy.
+5. Enforce hard authorization and safety constraints.
+6. Retrieve relevant historical evidence.
+7. Generate policy-eligible strategies.
+8. Estimate cost and constraint fit before expensive execution.
+9. Score candidates using transparent evidence-backed inputs.
+10. Emit a DecisionRecord before execution.
+11. Execute only what the decision permits.
+12. Capture actual latency, usage, cost, and failure metadata.
+13. Verify/evaluate the outcome.
+14. Persist DecisionRecord, VerificationRecord, and EvidenceRecord.
+15. Update bounded loop state.
+16. Decide `COMPLETE`, `REPAIR`, `REPLAN`, `RETRY`, `ESCALATE`, or `ABORT`.
+17. If another iteration is allowed, create a new decision linked to the same run.
+
+## 4. Policy evaluation order
 
 ```text
 Identity / authorization
         ↓
 Hard safety / block rules
         ↓
-Risk threshold
+Risk / autonomy threshold
         ↓
 Tool permission
         ↓
-Budget constraint
+Run limits: cost / iterations / time / failures
         ↓
 Quality / latency constraints
         ↓
@@ -157,63 +198,108 @@ Historical evidence
         ↓
 Candidate scoring
         ↓
-Autonomy / approval decision
+Decision
 ```
 
-Hard policy constraints must not be overridden by a high model score.
+Hard policy constraints must never be overridden by a high model or agent score.
 
-## 5. Candidate scoring
+## 5. Decision and loop semantics
 
-Use a transparent scoring interface. A candidate can expose:
+### Runtime action decisions
 
-- capability score
-- historical success/quality
-- evidence sample size
-- evidence freshness
-- reliability score
-- expected latency
-- expected cost
-- risk penalty
-- constraint violations
+- `ALLOW` — execute requested action.
+- `ROUTE` — modify model/tool/strategy and execute.
+- `RETRY` — repeat a retryable operation within limits.
+- `FALLBACK` — switch to an eligible alternate strategy.
+- `ESCALATE` — require human approval or a higher-trust path.
+- `BLOCK` — refuse execution.
 
-The implementation may use a weighted score, but the UI must show the inputs that caused the winner/rejection. Avoid claiming that arbitrary weights are universally optimal.
+### Loop decisions
 
-## 6. Tool execution requirements
+- `COMPLETE` — verification evidence satisfies completion criteria.
+- `REPAIR` — verification found a bounded correctable failure.
+- `REPLAN` — current plan is invalid or insufficient.
+- `ESCALATE` — autonomy boundary requires a human/higher-trust path.
+- `ABORT` — a hard limit, safety rule, or unrecoverable condition prevents continuation.
+
+A loop controller must not continue solely because an agent claims success.
+
+## 6. Candidate scoring
+
+A candidate may expose:
+
+- capability;
+- historical success/quality;
+- evidence sample size;
+- evidence freshness;
+- reliability;
+- expected latency;
+- expected cost;
+- risk penalty;
+- constraint violations.
+
+Conceptually:
+
+`DecisionScore = capability + evidence + reliability + constraint_fit - cost_penalty - risk_penalty`
+
+Weights are configurable and are not assumed universally optimal. Hard constraints are applied before scoring.
+
+## 7. Evidence rules
+
+Evidence becomes eligible for future routing only after evaluation/verification.
+
+```text
+Decision D1
+   ↓
+Execution E1
+   ↓
+Verification V1
+   ↓
+Evidence R1
+   ↓
+Evidence aggregation
+   ↓
+Decision D2
+```
+
+Evidence aggregation must consider task similarity, sample size, freshness, success/quality, latency, cost, and failure modes. One anomalous run must not dominate mature evidence.
+
+## 8. Tool execution requirements
 
 Every real tool adapter MUST provide:
 
-- explicit tool name and version
-- JSON/schema validation
-- permission/policy check
-- timeout
-- payload/input size bound
-- bounded retries
-- idempotency strategy where relevant
-- sanitized result metadata
-- typed failure class
-- trajectory event
+- explicit name/version;
+- schema validation;
+- server-side permission check;
+- timeout;
+- input/payload bound;
+- bounded retries;
+- idempotency strategy where relevant;
+- sanitized result metadata;
+- typed failure class;
+- trajectory/ledger event.
 
 Minimum failure classes:
 
 `AUTH | PERMISSION | VALIDATION | TIMEOUT | RATE_LIMIT | QUOTA | SERVER | NETWORK | UNKNOWN`
 
-## 7. Model execution requirements
+## 9. Model execution requirements
 
 Every model adapter MUST provide:
 
-- provider/model identifier
-- request timeout
-- bounded retry behavior
-- token/usage metadata when available
-- latency
-- estimated or actual cost
-- normalized response
-- failure classification
-- trajectory event
+- provider/model identifier;
+- timeout;
+- bounded retry behavior;
+- token/usage metadata where available;
+- actual latency;
+- estimated or actual cost;
+- normalized response;
+- failure classification;
+- ledger/trajectory event.
 
-The production execution path MUST NOT use hard-coded quality, latency, cost, or success values as if they were measurements.
+The real execution path must never use hard-coded quality, latency, cost, or success values as measurements.
 
-## 8. Reliability flow
+## 10. Reliability flow
 
 ```text
 Execution failure
@@ -221,7 +307,7 @@ Execution failure
       v
 Classify failure
       |
-      +-- non-retryable --> record + evaluate/fail
+      +-- non-retryable --> record + verify/fail
       |
       +-- retryable ------> retry budget available?
                                |
@@ -229,63 +315,54 @@ Classify failure
                          |           |
                         yes          no
                          |           |
-                       RETRY     circuit state
+                       RETRY     fallback eligible?
                                      |
-                                  FALLBACK?
-                                     |
-                              +------+------+
-                              |             |
-                             yes            no
-                              |             |
-                         alternate      ESCALATE/FAIL
-                         strategy
+                                +----+----+
+                                |         |
+                               yes        no
+                                |         |
+                            FALLBACK   ESCALATE/ABORT
 ```
 
-Circuit breakers must be scoped to provider/model/tool and use a bounded recovery policy.
+Circuit-breaker state must be scoped to provider/model/tool and use bounded recovery.
 
-## 9. Evidence feedback loop
+## 11. Closed-loop engineering workflow
 
-Evidence must influence future decisions only after an outcome is evaluated.
+The MVP engineering workflow may use specialized roles, but must remain bounded and evidence-driven:
 
 ```text
-Decision D1
-   ↓
-Execution E1
-   ↓
-Evaluation V1
-   ↓
-Evidence R1
-   ↓
-Evidence aggregation
-   ↓
-Decision D2 receives R1
+Task
+ ↓
+Investigation
+ ↓
+Implementation
+ ↓
+Independent Verification
+ ↓
+Control Plane
+ ├── COMPLETE
+ ├── REPAIR
+ ├── REPLAN
+ ├── ESCALATE
+ └── ABORT
 ```
 
-Evidence should be task-similar and freshness-aware. A single anomalous run must not dominate a mature evidence set.
+A repair iteration must have a concrete failure/evidence reference. The system must not create arbitrary additional agents merely to make the demo look autonomous.
 
-## 10. Replay dataflow
+## 12. Hard stopping controls
 
-```text
-Historical Decision
-        ↓
-Freeze original inputs/evidence snapshot
-        ↓
-Select alternative policy/configuration
-        ↓
-Recompute decision
-        ↓
-Compare
-  - action
-  - model/tool
-  - estimated cost
-  - estimated latency
-  - policy result
-  - expected quality where benchmark evidence exists
-```
+Every autonomous run MUST have server-side values for:
 
-Replay is initially a simulation/counterfactual feature; it must not execute dangerous real-world actions.
+- `max_cost_usd`;
+- `max_iterations`;
+- `max_runtime_ms`;
+- `max_failures`.
 
-## 11. Observability events
+Before starting another action, the runtime must check all limits. Hitting a limit produces `ABORT` or `ESCALATE` according to policy.
+
+An explicit kill/pause signal must prevent subsequent execution.
+
+## 13. Decision Ledger event model
 
 Minimum event types:
 
@@ -300,50 +377,82 @@ Minimum event types:
 `TOOL_AUTHORIZED`
 `TOOL_STARTED`
 `TOOL_COMPLETED`
+`VERIFICATION_STARTED`
+`VERIFICATION_COMPLETED`
+`REPAIR_STARTED`
 `RETRY_STARTED`
 `FALLBACK_STARTED`
 `ESCALATION_REQUIRED`
 `ACTION_BLOCKED`
-`EVALUATION_COMPLETED`
 `EVIDENCE_RECORDED`
 `RUN_COMPLETED`
+`RUN_ABORTED`
 
-Every event should include `run_id`, timestamp, and when applicable `decision_id`.
+Every event includes `run_id`, timestamp, and `decision_id` where applicable.
 
-## 12. Security requirements
-
-- Never store API keys, access tokens, authorization headers, or raw secrets in traces.
-- Tool permissions must be evaluated server-side.
-- High-risk actions must fail closed when authorization/policy is unavailable.
-- Logs should store metadata and redacted payloads rather than sensitive raw data.
-- Approval decisions must be auditable.
-- Replay must default to non-destructive simulation.
-
-## 13. MVP implementation order
-
-1. Add DecisionRecord and decision enum.
-2. Add policy evaluator with hard constraints.
-3. Put policy evaluation before current model routing.
-4. Replace mock model execution with one real provider adapter.
-5. Replace synthetic tool execution with one real bounded tool.
-6. Persist real outcome/evaluation evidence.
-7. Add fallback/circuit-breaker behavior.
-8. Add decision console explaining evidence and policy.
-9. Add replay after the real loop is trustworthy.
-
-## 14. Acceptance test: the complete loop
-
-A single automated integration test should demonstrate:
+## 14. Counterfactual replay dataflow
 
 ```text
-intent
- → policy
- → evidence retrieval
- → decision
- → real model/tool
- → evaluation
- → persisted evidence
- → second decision uses the new evidence
+Historical Run
+    ↓
+Freeze original intent + evidence snapshot
+    ↓
+Select alternative policy/model/strategy
+    ↓
+Recompute decision
+    ↓
+Compare actual vs counterfactual
+  - decision
+  - model/tool/strategy
+  - estimated cost
+  - estimated latency
+  - policy result
+  - benchmark-backed expected quality where available
 ```
 
-This is the primary proof that the product is an actual decision engine rather than a UI around synthetic metrics.
+Replay is initially simulation only and must not execute dangerous external actions.
+
+## 15. Security requirements
+
+- Never persist API keys, access tokens, cookies, authorization headers, or raw secrets.
+- Tool permissions are evaluated server-side.
+- High-risk actions fail closed when required authorization/policy is unavailable.
+- Store redacted metadata rather than unnecessary sensitive payloads.
+- Approval decisions are auditable.
+- Replay is non-destructive by default.
+
+## 16. MVP acceptance tests
+
+### Test A — Decision Ledger
+One real run produces an inspectable chain:
+
+`intent → policy → evidence → decision → action → verification → evidence`
+
+### Test B — Repair loop
+A deterministic test fixture forces verification failure, then a bounded repair path succeeds:
+
+`FAIL → REPAIR → VERIFY → COMPLETE`
+
+### Test C — Hard stop
+A run reaches `max_cost`, `max_iterations`, `max_runtime`, or `max_failures` and no subsequent model/tool action executes.
+
+### Test D — Policy boundary
+A high-risk action returns `ESCALATE`/`BLOCK` and the external action is not executed.
+
+### Test E — Evidence feedback
+The first execution creates measured evidence and a second similar task can consume that evidence without treating fixtures as measurements.
+
+### Test F — Counterfactual safety
+Replay changes policy/configuration in simulation without executing destructive actions.
+
+## 17. Implementation order
+
+1. Decision Ledger schema/events.
+2. Hard stopping controls.
+3. Closed-loop repair for one engineering workflow.
+4. Verification evidence and completion gate.
+5. Budget estimation/enforcement before model execution.
+6. Counterfactual decision replay.
+7. CEO/CTO decision timeline UI.
+
+Do not broaden to generic swarm orchestration until these proofs are real and measured.
