@@ -26,9 +26,13 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const task = typeof body.task === "string" && body.task.trim() ? body.task.trim() : "Fix the failing CI import in the agent runtime, verify the fix, and stop only when verification passes.";
 
+    // Demo mode must bypass the live backend entirely. This keeps the UI testable
+    // when AGENT_BACKEND_URL is configured but the Python runtime/provider is down.
+    const isDemoMode = url.searchParams.get("demo") === "true";
+
     // Preferred production path: the Next.js console becomes a thin client for the Python control plane.
     const backendUrl = process.env.AGENT_BACKEND_URL?.replace(/\/$/, "");
-    if (backendUrl) {
+    if (!isDemoMode && backendUrl) {
       const upstream = await fetch(`${backendUrl}/v1/agent/run`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task, task_type: body.task_type ?? "auto", max_cost_usd: body.constraints?.max_cost_usd ?? 0.05,
@@ -41,8 +45,7 @@ export async function POST(request: Request) {
       return NextResponse.json(data);
     }
 
-    // Legacy/demo provider comparison remains available when the Python runtime is not configured.
-    const isDemoMode = url.searchParams.get("demo") === "true";
+    // Demo/provider-comparison path. In demo mode no external provider is called.
     const messages = [
       { role: "system" as const, content: "You are a senior AI specialist. Provide an accurate, concise, and structured answer. Do not hallucinate." },
       { role: "user" as const, content: task },
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
     const providers: ProviderName[] = ["gemini", "huggingface", "nvidia", "openrouter"];
     const attempts = await Promise.allSettled(providers.map(async provider => {
       const model = DEFAULT_MODELS_PER_PROVIDER[provider];
-      if (isDemoMode) return { provider, name: PROVIDER_DISPLAY_NAMES[provider], model, quality: provider === "gemini" ? 96 : provider === "huggingface" ? 91 : provider === "nvidia" ? 95 : 93, cost: provider === "gemini" ? 0.0008 : provider === "huggingface" ? 0.0025 : provider === "nvidia" ? 0.004 : 0.0018, latency: provider === "gemini" ? 0.38 : provider === "huggingface" ? 1.45 : provider === "nvidia" ? 1.2 : 0.95, output: generateIntelligentOutput(task), status: "passed" };
+      if (isDemoMode) return { provider, name: PROVIDER_DISPLAY_NAMES[provider], model, quality: provider === "gemini" ? 96 : provider === "huggingface" ? 91 : provider === "nvidia" ? 95 : 93, cost: provider === "gemini" ? 0.0008 : provider === "huggingface" ? 0.0025 : provider === "nvidia" ? 0.004 : 0.0018, latency: provider === "gemini" ? 0.38 : provider === "huggingface" ? 1.45 : 1.2, output: generateIntelligentOutput(task), status: "passed" };
       const res = await callProvider(provider, model, messages, 1024, 15000);
       const grade = deterministicGrade(task, res.output);
       return { provider, name: PROVIDER_DISPLAY_NAMES[provider], model: res.model, quality: Math.max(0, Math.round(grade.quality * 100)), cost: res.estimatedCostUsd, latency: Number((res.latencyMs / 1000).toFixed(2)), output: res.output, status: "passed" };
@@ -59,7 +62,7 @@ export async function POST(request: Request) {
     if (!successful.length) return NextResponse.json({ task, status: "failed", loop_action: "ABORT", failure_class: "all_providers_failed", provenance: "MEASURED_PROVIDER_FAILURE" }, { status: 503 });
     const scored = successful.map(c => ({ ...c, score: 0.5 * (c.quality / 100) + 0.3 * Math.max(0, 1 - c.latency / 3) + 0.2 * Math.max(0, 1 - c.cost / 0.05) })).sort((a, b) => b.score - a.score);
     const winner = scored[0];
-    return NextResponse.json({ task, status: "done", loop_action: "COMPLETE", iteration: 1, provider: winner.provider, model: winner.model, quality: winner.quality / 100, cost_usd: winner.cost, total_cost_usd: winner.cost, latency_ms: Math.round(winner.latency * 1000), output: winner.output, decision_action: "ROUTE", decision: { action: "ROUTE", provider: winner.provider, model: winner.model, reason: `Legacy console fallback selected the best available provider trade-off.`, evidence_count: 0, provenance: "MEASURED_PROVIDER_RUN" }, verification: { passed: true, quality: winner.quality / 100, provenance: "MEASURED" }, trajectory: [{ step: "route", status: "done", detail: `selected ${winner.provider}/${winner.model}` }, { step: "verify", status: "passed", detail: `quality=${(winner.quality / 100).toFixed(3)}` }], candidates: scored.map(c => ({ provider: c.provider, model: c.model, score: c.score, quality: c.quality, cost: c.cost, latency: c.latency })) });
+    return NextResponse.json({ task, status: "done", loop_action: "COMPLETE", iteration: 1, provider: winner.provider, model: winner.model, quality: winner.quality / 100, cost_usd: winner.cost, total_cost_usd: winner.cost, latency_ms: Math.round(winner.latency * 1000), output: winner.output, decision_action: "ROUTE", decision: { action: "ROUTE", provider: winner.provider, model: winner.model, reason: isDemoMode ? `Demo mode simulated the provider trade-off without external API calls.` : `Legacy console fallback selected the best available provider trade-off.`, evidence_count: 0, provenance: isDemoMode ? "SIMULATED_DEMO" : "MEASURED_PROVIDER_RUN" }, verification: { passed: true, quality: winner.quality / 100, provenance: isDemoMode ? "SIMULATED_DEMO" : "MEASURED" }, trajectory: [{ step: "route", status: "done", detail: `selected ${winner.provider}/${winner.model}` }, { step: "verify", status: "passed", detail: `quality=${(winner.quality / 100).toFixed(3)}` }], candidates: scored.map(c => ({ provider: c.provider, model: c.model, score: c.score, quality: c.quality, cost: c.cost, latency: c.latency })) });
   } catch (error) {
     console.error("Agent execution error:", error);
     return NextResponse.json({ error: "Failed to evaluate providers" }, { status: 500 });
