@@ -1,15 +1,11 @@
-from backend.app.agent.decision import decide
-from backend.app.evaluation.quality import score_output
+from app.agent.decision import decide
+from app.evaluation.quality import score_output
 
 
 def test_high_risk_action_requires_approval():
     result = decide(
-        task="refund customer $2400",
-        model="gpt-5-mini",
-        tool_required=True,
-        estimated_cost_usd=0.001,
-        max_cost_usd=0.01,
-        task_type="tool_calling",
+        task="refund customer $2400", model="gpt-5-mini", tool_required=True,
+        estimated_cost_usd=0.001, max_cost_usd=0.01, task_type="tool_calling",
     )
     assert result.action == "ESCALATE"
     assert result.allowed is False
@@ -18,12 +14,8 @@ def test_high_risk_action_requires_approval():
 
 def test_budget_policy_blocks_before_execution():
     result = decide(
-        task="summarize this document",
-        model="expensive-model",
-        tool_required=False,
-        estimated_cost_usd=0.02,
-        max_cost_usd=0.01,
-        task_type="rag",
+        task="summarize this document", model="expensive-model", tool_required=False,
+        estimated_cost_usd=0.02, max_cost_usd=0.01, task_type="rag",
     )
     assert result.action == "BLOCK"
     assert result.allowed is False
