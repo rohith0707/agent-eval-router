@@ -1,4 +1,4 @@
-"""Typed state contract for the runtime decision workflow."""
+"""Typed state contract for the bounded autonomous decision loop."""
 from __future__ import annotations
 from typing import TypedDict, Optional
 
@@ -25,4 +25,12 @@ class AgentState(TypedDict, total=False):
     evidence_count: int
     max_cost_usd: float
     max_tokens: int
+    max_iterations: int
+    max_wall_time_ms: int
+    max_failures: int
+    total_cost_usd: float
+    iteration: int
+    loop_action: Optional[str]
+    verification: dict
+    ledger: list
     tool_context: Optional[str]
