@@ -50,12 +50,17 @@ class ReplayResult(BaseModel):
     confidence_score: float = Field(ge=0, le=1)
     evidence_used: int = Field(ge=0)
     constraints: ConstraintSet
+    actual: dict | None = None
+    counterfactual: dict | None = None
+    delta: dict | None = None
 
 
 class ReplayRequest(BaseModel):
     task: str = Field(min_length=1)
     task_type: str = Field(default="auto")
     constraints: ConstraintSet = Field(default_factory=ConstraintSet)
+    alternative_constraints: ConstraintSet | None = None
+    decision_id: str | None = None
 
 
 class AttemptRecord(BaseModel):
@@ -81,6 +86,7 @@ class TrajectoryStep(BaseModel):
     step: str
     status: str
     detail: str | None = None
+    iteration: int | None = None
 
 
 class AgentState(BaseModel):
@@ -105,6 +111,14 @@ class AgentState(BaseModel):
     evidence_count: int = 0
     max_cost_usd: float = Field(default=0.01, ge=0)
     max_tokens: int = Field(default=512, gt=0, le=8192)
+    max_iterations: int = Field(default=3, ge=1, le=10)
+    max_wall_time_ms: int = Field(default=120_000, gt=0)
+    max_failures: int = Field(default=2, ge=0, le=10)
+    total_cost_usd: float = 0.0
+    iteration: int = 0
+    loop_action: str | None = None
+    verification: dict = Field(default_factory=dict)
+    ledger: list[dict] = Field(default_factory=list)
 
 
 class AgentRequest(BaseModel):
@@ -112,3 +126,6 @@ class AgentRequest(BaseModel):
     task_type: str = Field(default="auto")
     max_cost_usd: float = Field(default=0.01, ge=0)
     max_tokens: int = Field(default=512, gt=0, le=8192)
+    max_iterations: int = Field(default=3, ge=1, le=10)
+    max_wall_time_ms: int = Field(default=120_000, gt=0)
+    max_failures: int = Field(default=2, ge=0, le=10)
