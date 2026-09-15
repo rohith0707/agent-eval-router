@@ -2,241 +2,76 @@
 
 import { useState } from "react";
 
-type AgentStep = {
-  node: string;
-  status: "pending" | "running" | "done" | "skipped" | "error";
-  detail?: string;
-  durationMs?: number;
-};
+type Decision = { action?: string; policy_action?: string; reason_code?: string; reason?: string; risk?: string; provider?: string; model?: string; evidence_count?: number; estimated_cost_usd?: number; };
+type Result = { run_id?: string; status?: string; loop_action?: string; iteration?: number; provider?: string; model?: string; quality?: number; latency_ms?: number; cost_usd?: number; total_cost_usd?: number; output?: string; decision_id?: string; decision?: Decision; verification?: { passed?: boolean; quality?: number; checks?: string[]; provenance?: string }; trajectory?: { step: string; status: string; detail?: string; iteration?: number }[]; limits?: Record<string, number> };
 
-type AgentResult = {
-  steps: AgentStep[];
-  output?: string;
-  quality?: number;
-  model?: string;
-  provider?: string;
-  costUsd?: number;
-  latencyMs?: number;
-  reasoning?: string;
-};
+const demoTask = "Fix the failing CI import in the agent runtime, verify the fix, and stop only when verification passes.";
 
-const NODE_FLOW = ["plan", "route", "execute", "evaluate"] as const;
-
-export default function AgentLab() {
-  const [task, setTask] = useState(
-    "Design a migration plan for a legacy 50GB PostgreSQL database to a serverless-native architecture with zero downtime."
-  );
-  const [taskType, setTaskType] = useState("reasoning");
-  const [qualityFloor, setQualityFloor] = useState(0.7);
-  const [maxLatency, setMaxLatency] = useState(5000);
-  const [maxCost, setMaxCost] = useState(0.01);
+export default function AgentControlPlane() {
+  const [task, setTask] = useState(demoTask);
+  const [maxCost, setMaxCost] = useState(0.05);
+  const [maxIterations, setMaxIterations] = useState(3);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<AgentResult | null>(null);
+  const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function runAgent() {
-    setRunning(true);
-    setError(null);
-    setResult(null);
-
+  async function run() {
+    setRunning(true); setError(null); setResult(null);
     try {
-      const res = await fetch("/api/agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          task,
-          task_type: taskType,
-          constraints: {
-            quality_floor: qualityFloor,
-            max_latency_ms: maxLatency,
-            max_cost_usd: maxCost,
-            reliability_floor: 0.8,
-          },
-        }),
-      });
-      if (!res.ok) {
-        setError(`Agent backend returned ${res.status}`);
-        setRunning(false);
-        return;
-      }
-      const data = await res.json();
-      const realSteps: AgentStep[] = (data.state?.steps || []).map((s: any) => ({
-        node: s.step,
-        status: "done",
-        durationMs: s.latency_ms,
-      }));
-      setResult({
-        steps: realSteps,
-        output: data.state?.output ?? "No output returned from agent.",
-        quality: data.quality ?? 0.92,
-        model: data.state?.selected_model ?? "Unknown model",
-        provider: data.state?.selected_provider ?? "Unknown provider",
-        costUsd: data.state?.cost ?? 0,
-        latencyMs: data.state?.latency_ms ?? 0,
-        reasoning: data.rationale ?? "Adaptive policy selected this model based on past benchmark evidence.",
-      });
-    } catch (err) {
-      setError("Could not reach agent backend. The Python service may be offline.");
-    } finally {
-      setTimeout(() => setRunning(false), 1700);
-    }
+      const res = await fetch("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task, task_type: "coding", constraints: { quality_floor: 0.7, max_cost_usd: maxCost, max_iterations: maxIterations } }) });
+      if (!res.ok) throw new Error(`Agent backend returned ${res.status}`);
+      setResult(await res.json());
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not reach agent backend."); }
+    finally { setRunning(false); }
   }
 
-  function statusColor(status: string) {
-    if (status === "done") return "#22c55e";
-    if (status === "running") return "#eab308";
-    if (status === "error") return "#ef4444";
-    return "#9ca3af";
-  }
+  return <div className="content">
+    <header className="header"><div><div className="crumb">Agent Eval Router / Control Plane</div><h1 className="h1">Autonomous Work Control Plane</h1><p className="sectionSub">Agents can act autonomously. The control plane decides whether they should, verifies the result, and stops runaway work.</p></div></header>
 
-  return (
-    <div className="content">
-      <header className="header">
-        <div>
-          <div className="crumb">Agent Eval Router / Agent Lab</div>
-          <h1 className="h1">Agent Trajectory Lab</h1>
-          <p className="sectionSub">
-            Plan → Route → Execute → Evaluate — a deterministic agent state machine
-            that selects the best LLM based on your constraints and prior evidence.
-          </p>
+    <section className="card" style={{ marginBottom: 18 }}>
+      <h2 className="sectionTitle">Run a controlled task</h2>
+      <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+        <textarea className="textArea" rows={4} value={task} onChange={e => setTask(e.target.value)} style={{ width: "100%", padding: 12, fontSize: 14, border: "1px solid var(--border)", borderRadius: 6 }} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <label><div className="signalTitle">Hard cost limit ($)</div><input type="number" min="0" step="0.01" value={maxCost} onChange={e => setMaxCost(Number(e.target.value))} style={{ width: "100%", padding: 8 }} /></label>
+          <label><div className="signalTitle">Max repair loops</div><input type="number" min="1" max="10" value={maxIterations} onChange={e => setMaxIterations(Number(e.target.value))} style={{ width: "100%", padding: 8 }} /></label>
         </div>
-      </header>
+        <button className="button" onClick={run} disabled={running || !task.trim()}>{running ? "Running controlled loop…" : "Run control plane"}</button>
+      </div>
+    </section>
 
+    {error && <section className="card" style={{ borderLeft: "3px solid #ef4444", marginBottom: 18 }}><p>{error}</p></section>}
+
+    {result && <>
       <section className="card" style={{ marginBottom: 18 }}>
-        <h2 className="sectionTitle">Task & Constraints</h2>
-        <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
-          <label>
-            <div style={{ fontSize: 13, marginBottom: 4, color: "var(--text-muted)" }}>Task</div>
-            <textarea
-              className="textArea"
-              rows={3}
-              value={task}
-              onChange={(e) => setTask(e.target.value)}
-              style={{ width: "100%", padding: 10, fontSize: 14, border: "1px solid var(--border)", borderRadius: 6 }}
-            />
-          </label>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
-            <label>
-              <div style={{ fontSize: 13, marginBottom: 4, color: "var(--text-muted)" }}>Task type</div>
-              <select
-                className="select"
-                value={taskType}
-                onChange={(e) => setTaskType(e.target.value)}
-                style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 6 }}
-              >
-                <option value="reasoning">Reasoning</option>
-                <option value="coding">Coding</option>
-                <option value="extraction">Extraction</option>
-                <option value="creative">Creative</option>
-                <option value="classification">Classification</option>
-                <option value="qa">Q&amp;A</option>
-              </select>
-            </label>
-            <label>
-              <div style={{ fontSize: 13, marginBottom: 4, color: "var(--text-muted)" }}>Quality floor</div>
-              <input type="number" step="0.05" min="0" max="1" value={qualityFloor} onChange={(e) => setQualityFloor(Number(e.target.value))} style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 6 }} />
-            </label>
-            <label>
-              <div style={{ fontSize: 13, marginBottom: 4, color: "var(--text-muted)" }}>Max latency (ms)</div>
-              <input type="number" step="100" min="100" value={maxLatency} onChange={(e) => setMaxLatency(Number(e.target.value))} style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 6 }} />
-            </label>
-            <label>
-              <div style={{ fontSize: 13, marginBottom: 4, color: "var(--text-muted)" }}>Max cost ($)</div>
-              <input type="number" step="0.001" min="0" value={maxCost} onChange={(e) => setMaxCost(Number(e.target.value))} style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 6 }} />
-            </label>
-          </div>
-          <button className="button" onClick={runAgent} disabled={running || !task.trim()}>
-            {running ? "Running agent…" : "Run agent"}
-          </button>
-        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><div><h2 className="sectionTitle">Decision timeline</h2><p className="sectionSub">Run {result.run_id ?? "—"} · Decision {result.decision_id ?? "—"}</p></div><strong>{result.loop_action ?? result.status}</strong></div>
+        <div style={{ marginTop: 16, display: "grid", gap: 8 }}>{(result.trajectory ?? []).map((t, i) => <div key={`${t.step}-${i}`} style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 6, display: "grid", gridTemplateColumns: "90px 90px 1fr", gap: 10 }}><strong>{t.step}</strong><span>{t.status}</span><span className="sectionSub">{t.detail}</span></div>)}</div>
       </section>
 
-      {error && (
-        <section className="card" style={{ borderLeft: "3px solid #ef4444", marginBottom: 18 }}>
-          <p style={{ color: "#ef4444" }}>{error}</p>
-          <p className="sectionSub">
-            Hint: the Python backend is not deployed yet. Once the FastAPI service is live,
-            the trajectory steps below will be populated with real routing decisions.
-          </p>
-        </section>
-      )}
+      <section className="card" style={{ marginBottom: 18 }}>
+        <h2 className="sectionTitle">Why did the system do this?</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 12 }}>
+          <div className="signal"><div className="signalTitle">Decision</div><div className="signalValue">{result.decision?.policy_action ?? result.decision?.action ?? "—"}</div></div>
+          <div className="signal"><div className="signalTitle">Risk</div><div className="signalValue">{result.decision?.risk ?? "—"}</div></div>
+          <div className="signal"><div className="signalTitle">Evidence</div><div className="signalValue">{result.decision?.evidence_count ?? 0}</div></div>
+          <div className="signal"><div className="signalTitle">Estimated cost</div><div className="signalValue">${(result.decision?.estimated_cost_usd ?? 0).toFixed(4)}</div></div>
+        </div>
+        <p className="sectionSub" style={{ marginTop: 12 }}><strong>{result.decision?.reason_code ?? "—"}</strong> — {result.decision?.reason ?? "No explanation returned."}</p>
+      </section>
 
-      {result && (
-        <section className="card" style={{ marginBottom: 18 }}>
-          <h2 className="sectionTitle">Trajectory</h2>
-          <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
-            {result.steps.map((step, i) => (
-              <div key={step.node} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div
-                  style={{
-                    padding: "8px 14px",
-                    border: `2px solid ${statusColor(step.status)}`,
-                    borderRadius: 6,
-                    color: statusColor(step.status),
-                    fontWeight: 600,
-                    textTransform: "capitalize",
-                    minWidth: 90,
-                    textAlign: "center",
-                  }}
-                >
-                  {step.node}
-                </div>
-                {i < result.steps.length - 1 && (
-                  <div style={{ width: 24, height: 2, background: "var(--border)" }} />
-                )}
-              </div>
-            ))}
-          </div>
-          {result.steps.some((s) => s.detail) && (
-            <ul style={{ marginTop: 16, fontSize: 13, color: "var(--text-muted)", lineHeight: 1.7 }}>
-              {result.steps.map((s) =>
-                s.detail ? (
-                  <li key={s.node}>
-                    <strong style={{ textTransform: "uppercase", color: statusColor(s.status) }}>{s.node}:</strong>{" "}
-                    {s.detail} {s.durationMs ? `(${s.durationMs}ms)` : ""}
-                  </li>
-                ) : null
-              )}
-            </ul>
-          )}
-        </section>
-      )}
+      <section className="card" style={{ marginBottom: 18 }}>
+        <h2 className="sectionTitle">Verification</h2><p className="sectionSub">{result.verification?.provenance ?? "—"}</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginTop: 12 }}>
+          <div className="signal"><div className="signalTitle">Status</div><div className="signalValue">{result.status}</div></div>
+          <div className="signal"><div className="signalTitle">Loop</div><div className="signalValue">{result.loop_action}</div></div>
+          <div className="signal"><div className="signalTitle">Iteration</div><div className="signalValue">{result.iteration}</div></div>
+          <div className="signal"><div className="signalTitle">Quality</div><div className="signalValue">{result.quality?.toFixed(3) ?? "—"}</div></div>
+          <div className="signal"><div className="signalTitle">Cost</div><div className="signalValue">${(result.total_cost_usd ?? result.cost_usd ?? 0).toFixed(4)}</div></div>
+        </div>
+        <p className="sectionSub" style={{ marginTop: 12 }}>Checks: {(result.verification?.checks ?? []).join(", ") || "none"}</p>
+      </section>
 
-      {result?.output && (
-        <section className="card" style={{ marginBottom: 18 }}>
-          <h2 className="sectionTitle">Agent output</h2>
-          <pre style={{ background: "var(--bg-muted)", padding: 16, borderRadius: 6, fontSize: 13, whiteSpace: "pre-wrap", marginTop: 8 }}>
-            {result.output}
-          </pre>
-        </section>
-      )}
-
-      {result && (
-        <section className="card">
-          <h2 className="sectionTitle">Routing decision</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 12 }}>
-            <div className="signal">
-              <div className="signalTitle">Model</div>
-              <div className="signalValue">{result.model}</div>
-            </div>
-            <div className="signal">
-              <div className="signalTitle">Provider</div>
-              <div className="signalValue">{result.provider}</div>
-            </div>
-            <div className="signal">
-              <div className="signalTitle">Latency</div>
-              <div className="signalValue">{result.latencyMs}ms</div>
-            </div>
-            <div className="signal">
-              <div className="signalTitle">Cost</div>
-              <div className="signalValue">${(result.costUsd ?? 0).toFixed(4)}</div>
-            </div>
-          </div>
-          {result.reasoning && (
-            <p className="sectionSub" style={{ marginTop: 12 }}>{result.reasoning}</p>
-          )}
-        </section>
-      )}
-    </div>
-  );
+      {result.output && <section className="card"><h2 className="sectionTitle">Verified output</h2><pre style={{ background: "var(--bg-muted)", padding: 16, borderRadius: 6, whiteSpace: "pre-wrap" }}>{result.output}</pre></section>}
+    </>}
+  </div>;
 }
