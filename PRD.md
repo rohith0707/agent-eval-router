@@ -1,246 +1,380 @@
-# PRD — Evidence-Driven Agent Decision Engine
+# PRD — Evidence-Driven Agent Control Plane
 
-**Product:** Agent Eval Router → Evidence-Driven Agent Decision Engine
-**Status:** Updated product direction
-**Audience:** Engineers building production AI agents, AI platform teams, AgentOps/LLMOps teams
-**Primary goal:** Make an agent's important runtime decisions explainable, policy-aware, evidence-driven, and measurable.
+**Product:** Agent Eval Router → Evidence-Driven Agent Control Plane
+**Status:** Product direction locked
+**Audience:** CTOs, AI platform teams, AgentOps teams, AI/Applied AI engineers
+**Primary goal:** Make autonomous AI work controllable, verifiable, explainable, and economically bounded.
 
 ## 1. Product thesis
 
-AI agents are moving from generating answers to taking actions. The production problem is therefore not only model quality; it is deciding **whether, how, and under what constraints an agent should act**.
+AI agents are becoming capable of taking real actions. The hard production problem is no longer only "which model gives the best answer?" It is **whether an autonomous action should happen, how it should happen, what evidence justifies it, and whether the result is actually trustworthy.**
 
-This product is a runtime decision layer around agents. Before an important model or tool action executes, it evaluates task requirements, policy, risk, budget, reliability, model/tool capability, and historical evidence. It returns an explicit decision and records the outcome as evidence for future decisions.
+This product is the runtime control plane between an agent and the models/tools it can use. It evaluates policy, risk, budget, reliability, constraints, and historical execution evidence before important actions. After execution it evaluates the outcome and records a decision ledger that can drive the next decision.
 
 ### One-line description
-> An evidence-driven runtime decision engine that decides what an AI agent should do next — which model or tool to use, how much it can spend, whether approval is required, and when it should stop.
+> **The control plane for autonomous AI work: decide, constrain, verify, and explain what agents do.**
 
-### Differentiator
-The core primitive is **Decision**, not Chat, Model, Tool, or Dashboard.
+### Core loop
 
-`Intent → Decision → Action → Outcome → Evidence → Better Decision`
+`Intent → Policy → Evidence → Decision → Action → Verification → Evidence → Next Decision`
 
-## 2. Problem
+### Product distinction
 
-Production agents increasingly interact with models, APIs, databases, SaaS systems, and sensitive business actions. Static model selection and application-level if/else logic do not provide a unified way to answer:
+The product does **not** compete as another multi-agent framework, swarm runtime, chatbot, model gateway, or generic observability dashboard. Multi-agent execution may be an implementation strategy for selected workflows, but orchestration is not the product promise.
 
-- Should this action execute?
-- Which model is appropriate for this task and constraint set?
-- Which tool is allowed?
-- How much budget can be consumed?
-- Does the action require approval?
-- Should the system retry, fallback, escalate, or stop?
-- Why was this decision made?
-- Did the decision actually work?
-- What evidence should influence the next decision?
+The core primitive is the **Decision** and its **evidence trail**.
+
+## 2. Executive problem
+
+Organizations are deploying increasingly autonomous agents across coding, research, support, operations, finance, and internal workflows. These agents can select models, call tools, retry failures, change strategy, and continue work without a human at every step.
+
+That creates five executive questions:
+
+1. **Control:** What is an agent allowed to do?
+2. **Trust:** What evidence proves an action or result is safe and correct?
+3. **Economics:** Why did the system spend this money, and could it have used a cheaper strategy?
+4. **Reliability:** What happens when a model, tool, or agent fails?
+5. **Accountability:** Can we reconstruct why the system acted, changed strategy, retried, escalated, or stopped?
+
+The product exists to answer those questions at runtime.
 
 ## 3. Target users
 
 ### Primary
+- CTOs and engineering leaders operating autonomous AI systems.
+- AI platform / AgentOps engineers responsible for reliability, cost, evaluation, and governance.
 - AI/Applied AI engineers building production agents.
-- AI platform and AgentOps engineers responsible for runtime reliability, cost, evaluation, and governance.
-- Teams operating multiple models and tools.
 
 ### Secondary
-- Engineering leads evaluating agent reliability and economics.
-- Security/platform teams needing runtime policy boundaries.
+- Security/platform teams defining runtime boundaries.
+- Engineering teams that need verifiable autonomous coding or operational workflows.
 
-## 4. Core user journey
+## 4. Product experience
 
-1. Submit an agent task or receive an agent action request.
-2. Extract task/action requirements.
-3. Retrieve applicable policies and historical evidence.
-4. Generate candidate model/tool/action strategies.
-5. Score candidates against quality, reliability, cost, risk, and constraints.
-6. Produce an explicit decision: `ALLOW`, `ROUTE`, `RETRY`, `FALLBACK`, `ESCALATE`, or `BLOCK`.
-7. Execute only what the decision permits.
-8. Evaluate the result and trajectory.
-9. Persist the decision, evidence, outcome, cost, latency, and failure class.
-10. Use accumulated evidence in future decisions.
+The user submits an agent task or the platform receives an intended agent action.
 
-## 5. Product principles
+The control plane:
 
-### 5.1 Decision first
-Every meaningful runtime action should have a machine-readable decision record.
+1. analyzes task/action requirements;
+2. identifies risk and autonomy level;
+3. loads applicable policy;
+4. retrieves relevant historical evidence;
+5. generates eligible strategies;
+6. decides whether to allow, route, retry, fallback, escalate, or block;
+7. executes only within the decision boundary;
+8. verifies the result;
+9. records the complete decision ledger;
+10. decides whether the run is complete or requires bounded repair/retry.
 
-### 5.2 Evidence over claims
-Routing and policy optimization must use measured execution evidence when available. Fixtures and synthetic examples must be explicitly labeled.
+### Important UX principle
 
-### 5.3 Fail closed for high-risk actions
-If policy or authorization information is missing for a high-risk action, do not silently execute it.
+The UI should make this question immediately answerable:
 
-### 5.4 Bounded autonomy
-The engine should control the amount of autonomy granted to an agent per action.
+> **Why did the system do this, and what proves it was the right thing to do?**
 
-### 5.5 Explainability without hidden reasoning
-Expose decision inputs, policy matches, scores, constraints, evidence references, and outcomes. Do not store or expose private chain-of-thought.
+## 5. Decision Ledger
 
-### 5.6 Real execution before polish
-A smaller number of real model/tool integrations is more valuable than a large simulated surface.
+Every important runtime action produces a structured ledger entry:
 
-## 6. Functional requirements
+```text
+Intent
+  ↓
+Policy / Risk / Constraints
+  ↓
+Evidence used
+  ↓
+Decision
+  ↓
+Action executed
+  ↓
+Actual cost / latency / failure
+  ↓
+Verification result
+  ↓
+Final outcome
+```
 
-### FR-1 Task and action analysis
-The system MUST normalize an incoming task/action into structured requirements including task type, required quality, latency target, budget, risk class, requested tool, and autonomy level where applicable.
+The ledger must expose decision inputs and evidence references, not private chain-of-thought.
 
-### FR-2 Policy engine
-The system MUST support declarative policies for:
-- permitted models/providers
-- permitted tools
-- spend limits
-- latency limits
-- risk thresholds
-- approval requirements
-- retry/fallback limits
-- blocked actions
+A reviewer should be able to inspect one run and answer:
 
-### FR-3 Decision engine
-The system MUST return one explicit decision:
-- `ALLOW` — execute requested action.
-- `ROUTE` — modify model/tool strategy and execute.
-- `RETRY` — retry under bounded retry policy.
-- `FALLBACK` — switch provider/model/tool after a classified failure.
-- `ESCALATE` — require human approval or higher-trust execution path.
-- `BLOCK` — refuse execution.
+- What did the agent want to do?
+- What was allowed or denied?
+- Which policy applied?
+- What evidence was used?
+- Which alternatives were considered?
+- Why was the winner selected?
+- What actually happened?
+- What did it cost?
+- Did verification pass?
+- What happens next?
 
-### FR-4 Evidence-aware routing
-The existing model router MUST remain as a decision capability. Historical task-similar outcomes should influence model/provider selection subject to current policy and constraints.
+## 6. Closed-loop execution
 
-### FR-5 Tool authorization
-Every external tool invocation MUST pass a policy check before execution. Tool calls MUST have schema validation, timeout, payload bounds, and a classified failure result.
+The product may use specialized workers internally for bounded workflows, but it must not expose "many agents talking to each other" as the value proposition.
 
-### FR-6 Budget guard
-The engine MUST estimate and enforce per-run/per-action budget limits. If an action would exceed the allowed budget, it MUST route, escalate, or block according to policy.
+For an engineering task, a controlled loop can look like:
 
-### FR-7 Risk and approval
-Actions MUST receive a risk class. High-risk actions MUST be able to require approval or be blocked.
+```text
+TASK
+ ↓
+ASSESS
+ ↓
+INVESTIGATE
+ ↓
+IMPLEMENT
+ ↓
+VERIFY
+ ↓
+CONTROL PLANE
+ ├── COMPLETE
+ ├── REPAIR
+ ├── RETRY
+ ├── REPLAN
+ ├── ESCALATE
+ └── ABORT
+```
 
-### FR-8 Reliability controls
-The runtime MUST support bounded retries, provider fallback, timeout handling, and circuit-breaker state for repeated transient failures.
+A loop may continue only while hard limits permit it:
 
-### FR-9 Evaluation
-The system MUST evaluate final outcomes and, where possible, tool correctness and trajectory-level behavior. Evaluation must produce measurable fields rather than a hard-coded quality value in the real execution path.
+- maximum iterations;
+- maximum cost;
+- maximum wall-clock time;
+- maximum consecutive failures;
+- required verification/confidence threshold;
+- policy/autonomy boundary.
 
-### FR-10 Evidence persistence
-Each completed or blocked decision MUST persist:
-- decision ID
-- run ID
-- task/action type
-- policy version
-- candidate strategies
-- selected strategy
-- decision reason
-- evidence references
-- model/tool
-- latency
-- cost
-- outcome
-- quality/evaluation result
-- failure class
-- timestamp
+### Loop rule
 
-### FR-11 Decision replay
-The system SHOULD support replaying a historical decision with a different policy/configuration and comparing expected cost, latency, quality, and decision outcome.
+**The system must never equate "agent says done" with "task is verified."**
 
-### FR-12 Kill/pause control
-The system SHOULD support an agent/run pause or kill control that prevents further action execution.
+Completion requires explicit verification evidence appropriate to the task.
 
-## 7. Non-functional requirements
+## 7. Functional requirements
 
-- Python/FastAPI backend remains the primary agent runtime.
-- Next.js frontend remains the decision console.
-- PostgreSQL remains the durable evidence store.
-- Provider/tool adapters must be isolated behind interfaces.
-- External calls require bounded timeouts.
-- Secrets must never be persisted in decision records or logs.
-- Every execution path must be traceable by run ID and decision ID.
-- Policy evaluation must be deterministic for the same policy, inputs, and evidence snapshot.
-- Production metrics must distinguish measured data from synthetic/demo fixtures.
+### FR-1 Intent and task analysis — MUST
+Normalize incoming work into task/action type, quality floor, latency target, cost budget, risk class, requested model/tool, autonomy level, and relevant constraints.
 
-## 8. Decision model
+### FR-2 Runtime policy — MUST
+Support declarative rules for permitted models/providers, permitted tools, spend limits, latency limits, risk thresholds, approval requirements, retry/fallback limits, and blocked actions.
 
-A candidate strategy should be evaluated conceptually using:
+### FR-3 Decision engine — MUST
+Return one explicit semantic outcome:
+
+`ALLOW | ROUTE | RETRY | FALLBACK | ESCALATE | BLOCK`
+
+Loop-level outcomes may additionally be:
+
+`COMPLETE | REPAIR | REPLAN | ABORT`
+
+### FR-4 Evidence-aware strategy selection — MUST
+Select among policy-eligible strategies using historical measured evidence where available. Evidence must be task-similar and freshness-aware.
+
+### FR-5 Tool authorization — MUST
+Every external tool call passes server-side policy/permission checks and bounded schema, payload, timeout, retry, and failure handling.
+
+### FR-6 Budget enforcement — MUST
+Estimate and enforce per-action and per-run budget before expensive execution. Actual usage must update the ledger.
+
+### FR-7 Risk and autonomy — MUST
+Classify actions and enforce an autonomy policy. High-risk actions must support approval or blocking and fail closed when required policy/authorization is unavailable.
+
+### FR-8 Reliability — MUST
+Support bounded retry, fallback, timeout handling, failure classification, and circuit-breaker state for repeated transient failures.
+
+### FR-9 Verification/evaluation — MUST
+Evaluate actual execution outcomes. Production quality cannot be a hard-coded constant. Verification must produce structured evidence.
+
+### FR-10 Decision Ledger persistence — MUST
+Persist decision ID, run ID, action/task type, policy version, candidates, selected strategy, reason codes, evidence references, model/tool, constraints, actual latency/cost, outcome, evaluation/verification, failure class, and timestamp.
+
+### FR-11 Bounded repair loop — MUST for MVP demo
+Support at least one controlled `FAIL → REPAIR → VERIFY → COMPLETE` workflow without exceeding runtime limits.
+
+### FR-12 Counterfactual decision replay — SHOULD
+Replay a historical decision with an alternative policy/configuration without performing dangerous real-world actions. Show how the decision, strategy, expected cost/latency, and benchmark-backed expected quality differ.
+
+### FR-13 Pause/kill — SHOULD
+Provide a run-level control that prevents further execution after a kill/pause decision.
+
+## 8. Non-functional requirements
+
+- Python/FastAPI remains the primary runtime.
+- Next.js remains the decision console.
+- PostgreSQL remains the intended durable evidence store; implementation claims must match the actual repository state.
+- Provider and tool adapters remain isolated behind interfaces.
+- All external calls have bounded timeouts.
+- Secrets never enter decision records or logs.
+- Every execution path is attributable to run ID and decision ID.
+- Policy evaluation is deterministic for the same policy, inputs, and evidence snapshot.
+- Measured, fixture, synthetic, target, and design data remain explicitly distinguishable.
+- Runaway loops must be physically bounded by server-side controls, not only UI messaging.
+
+## 9. Decision model
+
+Conceptually:
 
 `DecisionScore = capability + evidence + reliability + constraint_fit - cost_penalty - risk_penalty`
 
-The exact weights are configurable and must not be presented as scientifically optimal. Historical evidence should be similarity-aware and freshness-aware.
+This is an implementation interface, not a scientifically optimal formula. Hard policy constraints always dominate optimization scores.
 
-## 9. Autonomy model
+The UI must explain candidate differences using observable inputs rather than hidden reasoning.
+
+## 10. Autonomy model
 
 | Risk | Default autonomy | Example |
 |---|---|---|
-| Low | Auto | summarize documents |
-| Medium | Auto with limits | send routine email |
-| High | Approval | refund above threshold |
-| Critical | Block or multi-party approval | irreversible financial/security action |
+| Low | Auto | summarize or classify information |
+| Medium | Auto with limits | routine reversible workflow |
+| High | Approval | high-value business action or production change |
+| Critical | Block / multi-party approval | irreversible financial, security, or destructive action |
 
-## 10. MVP scenarios
+## 11. MVP proof scenarios
 
-### Scenario A — Economic routing
-A task requires quality >= 0.90 and budget <= $2. The decision engine selects the cheapest historically reliable model satisfying the constraints.
+### Scenario A — Economic decision
+A task has a quality floor and strict budget. The control plane selects a policy-eligible strategy using evidence and records why alternatives were rejected.
 
-### Scenario B — Dangerous tool action
-An agent requests a high-value refund. Policy detects the risk threshold and returns `ESCALATE` rather than allowing direct execution.
+### Scenario B — High-risk action
+An agent requests a sensitive or destructive action. The control plane returns `ESCALATE` or `BLOCK`; no dangerous action executes before approval.
 
-### Scenario C — Reliability fallback
-Provider A times out repeatedly. The engine classifies the failure, trips a bounded circuit breaker, routes to provider B, and records the outcome as evidence.
+### Scenario C — Reliability recovery
+A selected provider/tool fails with a retryable failure. The control plane performs bounded retry/fallback, records the failure, and evaluates the successful result.
 
-## 11. UI requirements
+### Scenario D — Closed-loop engineering
+A coding task fails verification. A bounded repair step runs, independent verification executes again, and the run reaches `COMPLETE` only when verification evidence passes.
 
-Keep the navigation intentionally small:
+### Scenario E — Counterfactual
+A historical run is replayed under a different routing/policy configuration. The UI shows actual decision versus counterfactual decision without executing destructive actions.
 
-- **RUN** — submit task, view active execution, outcome, cost, latency, and controls.
-- **DECISIONS** — inspect why a decision happened; candidates, evidence, policy, constraints, winner/rejection, and outcome.
-- **SETTINGS** — models, tools, policies, budgets.
+## 12. CEO/CTO demo requirement
 
-The primary UI question is:
-> **Why did the agent make this decision?**
+The primary demo must be understandable in approximately 60 seconds.
 
-## 12. Success metrics
+Show one run with:
 
-Product success is measured using reproducible benchmark runs, not invented dashboard numbers.
+```text
+TASK
+→ decision
+→ evidence
+→ action
+→ verification
+→ COMPLETE / REPAIR / ESCALATE
+```
+
+The strongest demo is not the number of agents. It is the ability to inspect a decision and its proof.
+
+## 13. UI requirements
+
+Keep navigation intentionally small:
+
+- **RUN** — execute/observe a task, loop state, budget, risk, and verification.
+- **DECISIONS** — inspect the Decision Ledger and "Why?" evidence.
+- **SETTINGS** — policies, models, tools, budgets, runtime limits.
+
+A decision detail view should show:
+
+- requested action;
+- policy result;
+- risk/autonomy;
+- candidates and rejection reasons;
+- evidence references;
+- selected model/tool/strategy;
+- actual cost/latency;
+- verification;
+- retry/fallback/repair history;
+- final outcome.
+
+## 14. Success metrics
+
+All product claims require reproducible evidence.
 
 Minimum benchmark:
-- 15–20 representative tasks.
-- Baseline policy versus evidence-driven policy.
-- Measure success/quality, latency, cost, tool correctness, and failure rate.
-- Include at least one failure/fallback scenario and one policy-block/approval scenario.
-- Store benchmark inputs and outputs so results can be reproduced.
 
-## 13. Out of scope for MVP
+- 15–20 representative tasks;
+- baseline versus evidence-driven strategy;
+- task success/quality;
+- latency;
+- cost;
+- tool correctness where relevant;
+- failure/fallback rate;
+- policy compliance;
+- at least one bounded repair loop;
+- at least one blocked/escalated action;
+- reproducible stored inputs and outputs.
 
-- Building a new agent framework.
-- Multi-agent swarm orchestration.
-- Generic RAG platform.
-- Dozens of tool integrations.
-- Full enterprise IAM suite.
-- Autonomous self-modifying policies.
-- RL-based routing.
-- Kubernetes control plane.
-- Large analytics/BI system.
+Do not publish cost savings, quality improvements, reliability improvements, or production SLOs until measured.
 
-## 14. Implementation priority
+## 15. Scope guard
 
-P0: real model execution.
-P0: one real bounded tool.
-P0: decision/policy layer around execution.
-P0: empirical evaluation and evidence persistence.
-P1: fallback/circuit breaker hardening.
-P1: decision replay.
-P1: pause/kill control.
-P2: additional providers/tools and enterprise features.
+### In scope
 
-## 15. Definition of done for the product direction
+- runtime policy and decisioning;
+- Decision Ledger;
+- real model/tool execution;
+- evidence-backed routing;
+- bounded retry/fallback;
+- verification/evaluation;
+- one closed-loop engineering workflow;
+- counterfactual replay after the core loop is trustworthy.
 
-A reviewer can run one task and see:
+### Explicitly out of scope for MVP
 
-`Task → Policy → Evidence → Decision → Real Model/Tool → Evaluation → Evidence`
+- generic multi-agent swarm framework;
+- agent marketplace;
+- dozens of agents/tools/providers;
+- generic RAG platform;
+- full enterprise IAM suite;
+- autonomous self-modifying policies;
+- RL-based routing;
+- Kubernetes control plane;
+- large BI/analytics suite;
+- autonomous destructive actions.
 
-and answer, from the UI and persisted trace:
+## 16. Implementation priority
 
-1. What did the agent want to do?
-2. What did the decision engine allow or change?
-3. Why?
-4. What actually happened?
-5. What did it cost?
-6. Did it work?
-7. What evidence will affect the next decision?
+**P0 — Decision Ledger**
+
+Why: this is the product's unique observable primitive.
+
+Done when: one run has an inspectable end-to-end trail from intent through policy, evidence, decision, action, verification, and outcome.
+
+**P0 — Closed-loop repair**
+
+Why: proves bounded autonomy instead of another one-shot agent.
+
+Done when: one engineering task demonstrates `FAIL → REPAIR → VERIFY → COMPLETE`.
+
+**P0 — Hard stopping controls**
+
+Why: autonomous systems must be unable to run indefinitely.
+
+Done when: max cost, iterations, wall-clock time, failures, and explicit abort prevent further execution server-side.
+
+**P1 — Counterfactual routing/replay**
+
+Why: turns the system from an observer into a decision-improvement engine.
+
+Done when: a historical run can show actual versus alternative strategy/policy outcomes without executing dangerous actions.
+
+**P1 — CEO-grade demo**
+
+Why: the value must be obvious without an architecture lecture.
+
+Done when: a reviewer can understand one complete run, its decisions, and proof in roughly 60 seconds.
+
+## 17. Definition of done
+
+The product direction is credible when a reviewer can run one real task and inspect:
+
+`Task → Policy → Evidence → Decision → Real Action → Verification → Evidence → Next Decision`
+
+and the system can prove that:
+
+1. autonomy was bounded;
+2. important actions had explicit decisions;
+3. policy could stop an action;
+4. execution produced measured operational evidence;
+5. verification determined completion;
+6. failure could trigger bounded repair/recovery;
+7. the ledger explains why the system acted;
+8. no invented benchmark data is presented as fact.
