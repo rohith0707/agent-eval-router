@@ -1,6 +1,7 @@
-"""Phase 4: Agent state type for the LangGraph-style workflow."""
+"""Typed state contract for the runtime decision workflow."""
 from __future__ import annotations
 from typing import TypedDict, Optional
+
 
 class AgentState(TypedDict, total=False):
     task: str
@@ -17,3 +18,11 @@ class AgentState(TypedDict, total=False):
     trajectory: list
     status: str
     failure_class: Optional[str]
+    decision: Optional[dict]
+    decision_id: Optional[str]
+    policy_version: Optional[str]
+    decision_action: Optional[str]
+    evidence_count: int
+    max_cost_usd: float
+    max_tokens: int
+    tool_context: Optional[str]
