@@ -1,49 +1,124 @@
-# Agent Eval Router — Evidence-Based LLM Routing
-> **Role:** AI Engineer (not senior/staff) | Agentic AI / RAG / LLM
+# Evidence-Driven Agent Control Plane
 
-> We route LLM requests to the model that actual wins — proven by empirical evaluation, not marketing claims.
+> **Agents can act autonomously. The control plane decides whether they should.**
 
-**Live URL:** https://agent-eval-router-balsarohith5-5561s-projects.vercel.app
+Agent Eval Router is evolving into a runtime control plane for autonomous AI work. It sits between agent intent and model/tool execution and makes important actions **controllable, bounded, verifiable, and explainable**.
 
-## The "PageRank for AI" Concept
+## The product
 
-How do you know which LLM to use for a specific production task? 
-
-You don't guess. You benchmark candidates across your data, assign an **EvidenceRank** (a weighted quality score across historical runs), and automatically route to the highest-scoring model that meets your cost and latency constraints.
-
-### The Single Decision Console
-
-This platform forces explicit explainability. When a model is chosen, we justify the decision:
-- **Winner:** `gemini-3.5-flash-lite` (EvidenceRank: 47, Avg Quality: 0.94, Avg Latency: 380ms)
-- **Rejected:** `gpt-4o` (37× cost delta for only +0.02 quality lift — explicitly rejected)
-- **ROI:** Saved $4.20 per 1,000 queries compared to baseline.
-
-## Technical Architecture
-
-This is a production-hardened routing layer, not a thin wrapper.
-
-- **Routing:** 4-provider cascade (Gemini, HuggingFace, OpenAI-OSS, OpenRouter).
-- **Resilience:** Circuit-breaker implemented for rate limits (HTTP 429), quota exhaustion (HTTP 402), and timeouts (HTTP 503) to ensure automatic fallback.
-- **Evaluation Engine:** Deterministic, stateful agent trajectory grading.
-- **Persistence:** PostgreSQL with Prisma ORM backing the EvidenceRank aggregation.
-
-### 5-Minute Verification
-
-We don't fake metrics. To see the EvidenceRank engine compute real decisions against free-tier LLM endpoints:
-
-```bash
-# Seed the database with a 50-case benchmark evaluation
-curl -X POST "https://agent-eval-router-balsarohith5-5561s-projects.vercel.app/api/benchmark?start=0&limit=50"
+```text
+Agent intent
+    ↓
+Risk + Policy + Budget
+    ↓
+Historical Evidence
+    ↓
+Decision
+    ├── ROUTE
+    ├── ALLOW
+    ├── RETRY / FALLBACK
+    ├── ESCALATE
+    └── BLOCK
+    ↓
+Real execution
+    ↓
+Verification
+    ↓
+Decision Ledger
+    ↓
+COMPLETE / REPAIR / ABORT
 ```
 
-## Tech Stack
+The core primitive is not a swarm. It is the **Decision Ledger**: what the agent wanted to do, which policy applied, what evidence was used, what action was selected, what happened, and what proved the outcome.
 
-- **Framework:** Next.js 15 (App Router)
-- **Backend:** Python (FastAPI agent simulation) / Node.js
-- **Database:** PostgreSQL (Neon) with Prisma ORM
-- **Deployment:** Vercel (Edge caching + dynamic compute)
-- **CI/CD:** Github Actions with deterministic pipeline contracts (`set -euo pipefail`)
+## Why it is different
+
+Generic multi-agent systems optimize agent collaboration. This project focuses on the control problem around autonomous work:
+
+- **Policy:** what can happen?
+- **Risk:** how much autonomy is acceptable?
+- **Economics:** can the action stay inside its budget?
+- **Reliability:** what happens when a model/tool fails?
+- **Verification:** what evidence is required before declaring success?
+- **Accountability:** why did the system act, retry, repair, escalate, or stop?
+
+Multi-agent workers can be introduced for a bounded workflow, but they are an implementation detail—not the product promise.
+
+## Current runtime capabilities
+
+- deterministic pre-execution policy gate;
+- risk-based `ALLOW | ROUTE | ESCALATE | BLOCK` decisions;
+- configured real model adapters;
+- bounded external HTTP tool;
+- historical execution evidence;
+- durable SQLite Decision Ledger for the current runtime;
+- bounded retry/fallback;
+- `FAIL → REPAIR → VERIFY → COMPLETE` loop;
+- server-side max cost, iteration, wall-clock and failure limits;
+- deterministic non-destructive counterfactual replay;
+- `/v1/decisions` and `/v1/decisions/{decision_id}` inspection APIs;
+- Next.js control-plane console.
+
+## Run the backend
+
+```bash
+cd backend
+# configure at least one provider: OPENAI_API_KEY, ANTHROPIC_API_KEY, or OLLAMA_ENABLED=true
+uvicorn app.main:app --reload
+```
+
+### Live run
+
+```bash
+curl -X POST http://localhost:8000/v1/agent/run \
+  -H 'content-type: application/json' \
+  -d '{
+    "task": "Explain the failing CI test and produce a verified repair plan",
+    "task_type": "coding",
+    "max_cost_usd": 0.05,
+    "max_tokens": 512,
+    "max_iterations": 3,
+    "max_wall_time_ms": 120000,
+    "max_failures": 2
+  }'
+```
+
+### Inspect decisions
+
+```bash
+curl http://localhost:8000/v1/decisions
+curl http://localhost:8000/v1/decisions/<decision_id>
+```
+
+### Counterfactual replay
+
+```bash
+curl -X POST http://localhost:8000/v1/replay \
+  -H 'content-type: application/json' \
+  -d '{"task":"choose a model for this coding task","task_type":"coding"}'
+```
+
+Replay is simulation only. It does not execute external actions.
+
+## Provenance
+
+Runtime metrics are labeled as measured only when they come from actual execution. Fixture/demo/synthetic values must never be presented as production measurements.
+
+The current durable runtime evidence implementation is **SQLite**, not PostgreSQL. PostgreSQL remains a future durability target; do not claim it is implemented until the repository actually uses it.
+
+## Architecture
+
+- **Backend:** Python / FastAPI
+- **Runtime:** policy → evidence → decision → execution → verification → ledger
+- **Frontend:** Next.js App Router
+- **Provider boundary:** isolated model adapters
+- **Evidence:** current SQLite execution history + Decision Ledger
+- **CI:** GitHub Actions
+
+## Scope guard
+
+This is deliberately not a generic agent swarm framework, RAG platform, enterprise IAM suite, or Kubernetes control plane. The near-term goal is one spectacular, verifiable autonomous engineering workflow and the runtime decision primitives underneath it.
 
 ---
 
-*Designed and engineered by Rohith Balsa for high-reliability AI platforms.*
+*Designed and engineered by Rohith Balsa for high-reliability autonomous AI systems.*
