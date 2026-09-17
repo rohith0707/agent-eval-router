@@ -18,13 +18,15 @@ class ToolExecutionError(RuntimeError):
 def _validate_tool_url(url: str) -> None:
     """Allow only explicitly approved HTTPS hosts; reject localhost/private targets."""
     parsed = urlparse(url)
-    if parsed.scheme != "https" or not parsed.hostname:
-        raise ToolExecutionError("POLICY", "Tool URL must use HTTPS")
-    if parsed.username or parsed.password:
-        raise ToolExecutionError("POLICY", "Tool URL must not contain embedded credentials")
+    if not parsed.scheme or not parsed.hostname:
+        raise ToolExecutionError("POLICY", "Tool URL is invalid")
     host = parsed.hostname.lower().rstrip(".")
     if host in {"localhost", "localhost.localdomain"}:
         raise ToolExecutionError("POLICY", "Localhost tool targets are blocked")
+    if parsed.scheme != "https":
+        raise ToolExecutionError("POLICY", "Tool URL must use HTTPS")
+    if parsed.username or parsed.password:
+        raise ToolExecutionError("POLICY", "Tool URL must not contain embedded credentials")
     try:
         address = ipaddress.ip_address(host)
         if address.is_private or address.is_loopback or address.is_link_local or address.is_reserved:
@@ -35,7 +37,7 @@ def _validate_tool_url(url: str) -> None:
 
     allowlist = {h.strip().lower().rstrip(".") for h in os.getenv("AGENT_TOOL_ALLOWED_HOSTS", "").split(",") if h.strip()}
     if allowlist and host not in allowlist:
-        raise ToolExecutionError("POLICY", "Tool host is not in AGENT_TOOL_ALLOWED_HOSTS")
+        raise ToolExecutionError("POLICY", "Tool host is not in allowlist: AGENT_TOOL_ALLOWED_HOSTS")
 
 
 async def execute_http_tool(task: str) -> dict:
