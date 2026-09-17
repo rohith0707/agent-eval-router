@@ -2,16 +2,22 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const page = await readFile("app/page.tsx", "utf8");
+const agentPage = await readFile("app/agent/page.tsx", "utf8");
 
-// Phase 1 product contract:
-// - Live multi-provider evaluation
-// - EvidenceRank leaderboard across all 4 providers
-// - Explainable decisions ("why this model?")
-assert.match(page, /fetch\("\/api\/evidence"\)/);
-assert.match(page, /EvidenceRank Leaderboard/);
-assert.match(page, /EVIDENCE ROUTER/);
-assert.match(page, /DECISION RATIONALE/);
-assert.match(page, /EVIDENCE TRACE/);
-assert.match(page, /\[ Solve → \]/);
+// Product contract: the root experience is now the autonomous agent control plane.
+// The legacy provider-router contract is intentionally no longer required at /.
+assert.match(page, /import AgentControlPlane from "\.\/agent\/page"/);
+assert.match(page, /<AgentControlPlane \/>/);
+assert.match(agentPage, /Autonomous Work Control Plane/);
+assert.match(agentPage, /Planner/);
+assert.match(agentPage, /Investigator/);
+assert.match(agentPage, /Implementer/);
+assert.match(agentPage, /Tester/);
+assert.match(agentPage, /Repairer/);
+assert.match(agentPage, /Reviewer/);
+assert.match(agentPage, /Verifier/);
+assert.match(agentPage, /SIMULATED_DEMO/);
+assert.match(agentPage, /Evidence/);
+assert.match(agentPage, /Decision/);
 
-console.log("Phase 1 product contract: PASS");
+console.log("Autonomous agent control-plane product contract: PASS");
