@@ -45,14 +45,14 @@ const roleDescriptions: Record<string, string> = {
   "Policy Gate": "Enforces execution limits.",
 };
 
-const stageOrder = ["plan", "route", "execute", "verify", "repair", "verify"];
-const stageLabels: Record<string, string> = {
-  plan: "PLAN",
-  route: "ROUTE",
-  execute: "EXECUTE",
-  verify: "VERIFY",
-  repair: "REPAIR",
-};
+const stageOrder = [
+  { key: "plan", label: "PLAN", aliases: ["plan", "planner"] },
+  { key: "route", label: "ROUTE", aliases: ["route", "orchestrator", "investigator"] },
+  { key: "execute", label: "EXECUTE", aliases: ["execute", "implementer"] },
+  { key: "verify-first", label: "VERIFY", aliases: ["verify", "tester"], preferLast: false },
+  { key: "repair", label: "REPAIR", aliases: ["repair", "repairer", "repair_controller"] },
+  { key: "verify-final", label: "VERIFY", aliases: ["verifier", "reviewer", "verify"], preferLast: true },
+];
 
 function statusIcon(status: string) {
   if (status === "passed" || status === "complete") return "✓";
@@ -239,16 +239,17 @@ export default function AgentControlPlane() {
 
               <div className="timeline">
                 {stageOrder.map((stage, index) => {
-                  const matching = trajectory.find((item) => item.step === stage);
-                  const isRepair = stage === "repair";
-                  const displayItem = matching ?? (isRepair ? trajectory.find((item) => item.step === "repairer") : undefined);
-                  const stageStatus = displayItem?.status ?? (index < 2 && trajectory.length ? "complete" : "pending");
+                  const candidates = trajectory.filter((item) =>
+                    stage.aliases.some((alias) => item.step === alias)
+                  );
+                  const displayItem = stage.preferLast ? candidates[candidates.length - 1] : candidates[0];
+                  const stageStatus = displayItem?.status ?? "pending";
                   return (
-                    <div className={`timelineStage ${stageStatus}`} key={`${stage}-${index}`}>
+                    <div className={`timelineStage ${stageStatus}`} key={stage.key}>
                       <div className="timelineNode">{statusIcon(stageStatus)}</div>
                       <div className="timelineText">
-                        <strong>{stageLabels[stage]}</strong>
-                        <span>{displayItem?.detail ?? (stage === "repair" ? "Only runs when verification fails." : "Waiting for this stage.")}</span>
+                        <strong>{stage.label}</strong>
+                        <span>{displayItem?.detail ?? (stage.key === "repair" ? "Runs only when verification fails." : "Waiting for this stage.")}</span>
                       </div>
                       {displayItem?.iteration != null && <small>#{displayItem.iteration}</small>}
                     </div>
