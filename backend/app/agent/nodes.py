@@ -16,7 +16,7 @@ def _classify_task(task: str) -> str:
     text = task.lower()
     if any(k in text for k in ["retrieve", "search", "context", "document", "rag"]): return "rag"
     if any(k in text for k in ["tool", "call", "execute", "function", "api"]): return "tool_calling"
-    if any(k in text for k in ["safety", "jailbreak", "injection", "harmful", "policy"]): return "safety"
+    if any(k in text for k in ["safety", "jailbreak", "injection", "harmful", "policy", "ignore previous", "reveal the system prompt", "system prompt", "bypass authorization", "privileged tool", "export customer data"]): return "safety"
     if any(k in text for k in ["reason", "explain", "think", "analyze", "solve", "calculate"]): return "reasoning"
     if any(k in text for k in ["code", "bug", "fix", "test", "ci", "compile"]): return "coding"
     return "auto"
