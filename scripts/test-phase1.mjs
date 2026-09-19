@@ -26,4 +26,5 @@ assert.match(agentPage, /verification gates/);
 
 console.log("Control-tower agent product contract: PASS");
 
-assert.match(agentPage, /THE PRODUCT IN ONE SENTENCE/);\nassert.match(agentPage, /No proof → no DONE\./);\n
+assert.match(agentPage, /THE PRODUCT IN ONE SENTENCE/);
+assert.match(agentPage, /No proof → no DONE\./);
