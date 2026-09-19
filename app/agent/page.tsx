@@ -4,16 +4,61 @@ import { useState } from "react";
 
 type Agent = { role: string; status: string; detail?: string };
 type Result = {
-  task?: string; provenance?: string; run_id?: string; status?: string; loop_action?: string;
-  iteration?: number; output?: string;
-  agents?: Agent[]; trajectory?: { step: string; status: string; detail?: string; iteration?: number }[];
-  decision?: { action?: string; policy_action?: string; reason_code?: string; reason?: string; risk?: string; evidence_count?: number };
+  task?: string;
+  provenance?: string;
+  run_id?: string;
+  status?: string;
+  loop_action?: string;
+  iteration?: number;
+  output?: string;
+  agents?: Agent[];
+  trajectory?: { step: string; status: string; detail?: string; iteration?: number }[];
+  decision?: {
+    action?: string;
+    policy_action?: string;
+    reason_code?: string;
+    reason?: string;
+    risk?: string;
+    evidence_count?: number;
+  };
   verification?: { passed?: boolean; quality?: number; checks?: string[]; provenance?: string };
   evidence?: { claim: string; evidence: string; status: string }[];
-  total_cost_usd?: number; latency_ms?: number; limits?: Record<string, number>;
+  total_cost_usd?: number;
+  latency_ms?: number;
+  limits?: Record<string, number>;
 };
 
-const demoTask = "Fix the failing CI import in the agent runtime, verify the fix, and stop only when verification passes.";
+const demoTask =
+  "Fix the failing CI import in the agent runtime, verify the fix, and stop only when verification passes.";
+
+const roleDescriptions: Record<string, string> = {
+  Planner: "Turns the job into bounded work.",
+  Investigator: "Finds the failure and supporting evidence.",
+  Implementer: "Applies the smallest corrective change.",
+  Tester: "Challenges the proposed result.",
+  Repairer: "Runs a bounded repair when verification fails.",
+  Reviewer: "Attempts to disprove the repair.",
+  Verifier: "Controls the final VERIFIED decision.",
+  Orchestrator: "Selects the execution path.",
+  "Tool Executor": "Runs only authorized tools.",
+  "Repair Controller": "Controls bounded retry loops.",
+  "Policy Gate": "Enforces execution limits.",
+};
+
+const stageOrder = ["plan", "route", "execute", "verify", "repair", "verify"];
+const stageLabels: Record<string, string> = {
+  plan: "PLAN",
+  route: "ROUTE",
+  execute: "EXECUTE",
+  verify: "VERIFY",
+  repair: "REPAIR",
+};
+
+function statusIcon(status: string) {
+  if (status === "passed" || status === "complete") return "✓";
+  if (status === "failed") return "×";
+  return "•";
+}
 
 export default function AgentControlPlane() {
   const [task, setTask] = useState(demoTask);
@@ -25,136 +70,266 @@ export default function AgentControlPlane() {
   const [error, setError] = useState<string | null>(null);
 
   async function run() {
-    setRunning(true); setError(null); setResult(null);
+    setRunning(true);
+    setError(null);
+    setResult(null);
     try {
       const endpoint = demo ? "/api/agent/demo" : "/api/agent";
-      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task, task_type: "coding", constraints: { quality_floor: 0.7, max_cost_usd: maxCost, max_iterations: maxIterations } }) });
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task,
+          task_type: "coding",
+          constraints: {
+            quality_floor: 0.7,
+            max_cost_usd: maxCost,
+            max_iterations: maxIterations,
+          },
+        }),
+      });
       if (!res.ok) throw new Error("Agent backend returned " + res.status);
       setResult(await res.json());
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not reach agent backend."); }
-    finally { setRunning(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not reach agent backend.");
+    } finally {
+      setRunning(false);
+    }
   }
 
   const verified = !!result?.verification?.passed;
-  const statusIcon = (status: string) => status === "passed" || status === "complete" ? "✓" : status === "failed" ? "×" : "•";
+  const quality = result?.verification?.quality;
+  const latency = result?.latency_ms;
+  const cost = result?.total_cost_usd;
+  const trajectory = result?.trajectory ?? [];
+  const agents = result?.agents ?? [];
+  const evidence = result?.evidence ?? [];
 
-  return <div className="content">
-    <header className="header">
-      <div>
-        <div className="crumb">AGENT RUN STUDIO / CONTROL PLANE</div>
-        <h1 className="h1">From task to verified decision in seconds.</h1>
-        <p className="sectionSub" style={{ maxWidth: 720 }}>
-          Submit an engineering task. The control plane plans, routes, executes, tests, repairs when needed,
-          and only declares success when evidence passes the verification gates.
-        </p>
-      </div>
-      <div style={{ marginTop: 10, display: "inline-flex", gap: 8, alignItems: "center" }}>
-        <span style={{ padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 999, fontSize: 11 }}>
-          {demo ? "SIMULATED DEMO" : "LIVE RUNTIME"}
-        </span>
-        <button className="button" onClick={() => setDemo(!demo)}>{demo ? "Use live runtime" : "Use demo"}</button>
-      </div>
-    </header>
-
-    <section className="card" style={{ marginBottom: 18 }}>
-      <div className="crumb">01 / INPUT</div>
-      <h2 className="sectionTitle" style={{ marginTop: 6 }}>Give the agent a job</h2>
-      <textarea className="textArea" rows={3} value={task} onChange={e => setTask(e.target.value)}
-        style={{ width: "100%", padding: 12, marginTop: 10, fontSize: 14, border: "1px solid var(--border)", borderRadius: 6 }} />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, marginTop: 12, alignItems: "end" }}>
-        <label><div className="signalTitle">Hard cost limit</div><input type="number" min="0" step="0.01" value={maxCost}
-          onChange={e => setMaxCost(Number(e.target.value))} style={{ width: "100%", padding: 8 }} /></label>
-        <label><div className="signalTitle">Max repair loops</div><input type="number" min="1" max="10" value={maxIterations}
-          onChange={e => setMaxIterations(Number(e.target.value))} style={{ width: "100%", padding: 8 }} /></label>
-        <button className="button" onClick={run} disabled={running || !task.trim()}>{running ? "Running…" : "Run agent →"}</button>
-      </div>
-    </section>
-
-    {error && <section className="card" style={{ borderLeft: "3px solid #ef4444", marginBottom: 18 }}><p>{error}</p></section>}
-
-    {!result && !error && <section className="card" style={{ marginBottom: 18 }}>
-      <div className="crumb">WHAT HAPPENS NEXT</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginTop: 14 }}>
-        {["PLAN", "ROUTE", "EXECUTE", "VERIFY", "PROVE"].map((step, i) =>
-          <div key={step} style={{ padding: 14, border: "1px solid var(--border)", borderRadius: 6 }}>
-            <div className="signalTitle">0{i + 1}</div><strong>{step}</strong>
-            <p className="sectionSub" style={{ marginTop: 5 }}>{["Understand the task", "Choose execution path", "Use bounded tools", "Test the result", "Return evidence"][i]}</p>
+  return (
+    <div className="controlPlane">
+      <header className="controlHeader">
+        <div>
+          <div className="eyebrow">AGENT EVAL ROUTER / CONTROL PLANE</div>
+          <div className="brandLine">
+            <span className="brandPulse" />
+            <span>Autonomous AI work, with proof.</span>
           </div>
-        )}
-      </div>
-    </section>}
+        </div>
+        <div className="runtimeSwitch">
+          <span className={demo ? "modeActive" : ""}>{demo ? "DEMO" : "LIVE RUNTIME"}</span>
+          <button className="ghostButton" onClick={() => setDemo(!demo)}>
+            {demo ? "Switch to live" : "Use demo"}
+          </button>
+        </div>
+      </header>
 
-    {result && <>
-      <section className="card" style={{ marginBottom: 18 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div>
-            <div className="crumb">02 / DECISION</div>
-            <h2 className="sectionTitle" style={{ fontSize: 24, marginTop: 6 }}>{verified ? "Verified outcome" : "Not verified"}</h2>
-            <p className="sectionSub" style={{ maxWidth: 650 }}>
-              {verified ? "The task reached a verified completion state. The result is backed by the checks shown below."
-                : "The system stopped without claiming success because the verification gates did not pass."}
+      <main className="controlContent">
+        <section className="controlHero">
+          <div className="heroCopy">
+            <div className="heroEyebrow">CONTROLLED AUTONOMY</div>
+            <h1>Give AI a job. Get a verified decision.</h1>
+            <p>
+              The control plane plans, routes, executes, repairs and verifies the work —
+              then refuses to claim success without evidence.
             </p>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div className="signalTitle">VERIFICATION</div>
-            <div className="signalValue" style={{ fontSize: 28 }}>{verified ? "PASS" : "FAIL"}</div>
+
+          <div className="taskCommand">
+            <div className="commandTop">
+              <div>
+                <div className="commandLabel">TASK</div>
+                <div className="commandHint">What should the system accomplish?</div>
+              </div>
+              <span className="commandStatus">READY</span>
+            </div>
+            <textarea
+              className="commandInput"
+              rows={3}
+              value={task}
+              onChange={(e) => setTask(e.target.value)}
+              aria-label="Agent task"
+            />
+            <div className="commandFooter">
+              <div className="policyChips">
+                <span>Cost ≤ \${maxCost.toFixed(2)}</span>
+                <span>Repair ≤ \${maxIterations}</span>
+                <span>Verification required</span>
+              </div>
+              <button className="runButton" onClick={run} disabled={running || !task.trim()}>
+                {running ? "Running control plane…" : "Start controlled run →"}
+              </button>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 18 }}>
-          <div className="signal"><div className="signalTitle">TIME TO DECISION</div><div className="signalValue">{result.latency_ms != null ? (result.latency_ms / 1000).toFixed(2) : "—"}s</div></div>
-          <div className="signal"><div className="signalTitle">COST</div><div className="signalValue">{"$" + (result.total_cost_usd ?? 0).toFixed(3)}</div></div>
-          <div className="signal"><div className="signalTitle">QUALITY</div><div className="signalValue">{result.verification?.quality != null ? result.verification.quality.toFixed(2) : "—"}</div></div>
-          <div className="signal"><div className="signalTitle">ITERATIONS</div><div className="signalValue">{result.iteration ?? "—"}</div></div>
-        </div>
-      </section>
+        {error && (
+          <section className="errorBanner">
+            <strong>RUN FAILED</strong>
+            <span>{error}</span>
+          </section>
+        )}
 
-      <section className="card" style={{ marginBottom: 18 }}>
-        <div className="crumb">03 / PROOF</div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-          <h2 className="sectionTitle">Why can we trust this result?</h2>
-          <span className="sectionSub">{result.verification?.checks?.length ?? 0} gates passed</span>
-        </div>
-        <div style={{ display: "grid", gap: 9, marginTop: 14 }}>
-          {(result.evidence ?? []).map((e, i) => <div key={i} style={{ display: "grid", gridTemplateColumns: "22px 190px 1fr", gap: 10, padding: 11, borderBottom: "1px solid var(--border)" }}>
-            <strong>{e.status === "verified" ? "✓" : "×"}</strong><strong>{e.claim}</strong><span className="sectionSub">{e.evidence}</span>
-          </div>)}
-        </div>
-      </section>
+        {!result && !error && (
+          <section className="preRunGrid">
+            <div className="preRunCard">
+              <div className="sectionEyebrow">WHAT MAKES THIS DIFFERENT</div>
+              <h2>Execution is controlled, not just generated.</h2>
+              <div className="controlPrinciples">
+                <div><b>01</b><span><strong>Bounded work</strong> — limits define what the runtime can do.</span></div>
+                <div><b>02</b><span><strong>Evidence</strong> — decisions carry checks and artifacts.</span></div>
+                <div><b>03</b><span><strong>Repair</strong> — failures trigger bounded recovery, not blind retries.</span></div>
+                <div><b>04</b><span><strong>Verification</strong> — no evidence, no VERIFIED state.</span></div>
+              </div>
+            </div>
 
-      <section className="card" style={{ marginBottom: 18 }}>
-        <div className="crumb">04 / EXECUTION</div>
-        <h2 className="sectionTitle">What the system actually did</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginTop: 14 }}>
-          {(result.agents ?? []).map(a => <div key={a.role} style={{ padding: 10, border: "1px solid var(--border)", borderRadius: 6, minHeight: 90 }}>
-            <div style={{ fontSize: 18 }}>{statusIcon(a.status)}</div><strong style={{ fontSize: 12 }}>{a.role}</strong>
-            <p className="sectionSub" style={{ fontSize: 10, marginTop: 5 }}>{a.detail}</p>
-          </div>)}
-        </div>
-        <div style={{ marginTop: 16 }}>
-          <div className="signalTitle">RUN TRAJECTORY</div>
-          {(result.trajectory ?? []).map((t, i) => <div key={t.step + "-" + i} style={{ display: "flex", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
-            <strong>{statusIcon(t.status)} {t.step}</strong><span>{t.detail}</span><span className="sectionSub">iteration {t.iteration}</span>
-          </div>)}
-        </div>
-      </section>
+            <div className="preRunCard previewCard">
+              <div className="sectionEyebrow">THE RUN YOU ARE ABOUT TO SEE</div>
+              <div className="previewMetric">
+                <span>DECISION</span>
+                <strong>VERIFIED</strong>
+              </div>
+              <div className="previewStats">
+                <div><span>TIME</span><strong>seconds</strong></div>
+                <div><span>COST</span><strong>measured</strong></div>
+                <div><span>PROOF</span><strong>attached</strong></div>
+              </div>
+              <p>Run the demo to see the full execution trail, repair loop and evidence ledger.</p>
+            </div>
+          </section>
+        )}
 
-      <section className="card" style={{ marginBottom: 18 }}>
-        <div className="crumb">05 / DECISION LEDGER</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 12 }}>
-          <div className="signal"><div className="signalTitle">ACTION</div><div className="signalValue">{result.decision?.action ?? "—"}</div></div>
-          <div className="signal"><div className="signalTitle">POLICY</div><div className="signalValue">{result.decision?.policy_action ?? "—"}</div></div>
-          <div className="signal"><div className="signalTitle">RISK</div><div className="signalValue">{result.decision?.risk ?? "—"}</div></div>
-          <div className="signal"><div className="signalTitle">EVIDENCE</div><div className="signalValue">{result.decision?.evidence_count ?? 0}</div></div>
-        </div>
-        <p className="sectionSub" style={{ marginTop: 12 }}><strong>{result.decision?.reason_code}</strong> — {result.decision?.reason}</p>
-      </section>
+        {result && (
+          <>
+            <section className={verified ? "outcomeCard verified" : "outcomeCard failed"}>
+              <div className="outcomeHeader">
+                <div>
+                  <div className="sectionEyebrow">01 / OUTCOME</div>
+                  <div className="outcomeTitleRow">
+                    <span className="outcomeIcon">{verified ? "✓" : "!"}</span>
+                    <h2>{verified ? "VERIFIED" : "NOT VERIFIED"}</h2>
+                  </div>
+                  <p>
+                    {verified
+                      ? "The system completed the work and passed its verification gates."
+                      : "The system stopped without claiming success because verification did not pass."}
+                  </p>
+                </div>
+                <div className="decisionStamp">
+                  <span>TIME TO VERIFIED DECISION</span>
+                  <strong>{latency != null ? \`\${(latency / 1000).toFixed(2)}s\` : "—"}</strong>
+                </div>
+              </div>
 
-      <details className="card" style={{ marginBottom: 18 }}>
-        <summary style={{ cursor: "pointer", fontWeight: 700 }}>Advanced runtime trace</summary>
-        <pre style={{ background: "var(--bg-muted)", padding: 16, borderRadius: 6, whiteSpace: "pre-wrap", marginTop: 12 }}>{result.output}</pre>
-      </details>
-    </>}
-  </div>;
+              <div className="outcomeMetrics">
+                <div><span>COST</span><strong>{cost != null ? \`\$\${cost.toFixed(3)}\` : "—"}</strong></div>
+                <div><span>QUALITY</span><strong>{quality != null ? \`\${Math.round(quality * 100)}%\` : "—"}</strong></div>
+                <div><span>ITERATIONS</span><strong>{result.iteration ?? "—"}</strong></div>
+                <div><span>EVIDENCE</span><strong>{result.decision?.evidence_count ?? evidence.length}</strong></div>
+              </div>
+            </section>
+
+            <section className="executionCard">
+              <div className="sectionHeader">
+                <div>
+                  <div className="sectionEyebrow">02 / EXECUTION</div>
+                  <h2>Watch the work happen.</h2>
+                </div>
+                <span className="livePill"><i /> {running ? "RUNNING" : "RUN COMPLETE"}</span>
+              </div>
+
+              <div className="timeline">
+                {stageOrder.map((stage, index) => {
+                  const matching = trajectory.find((item) => item.step === stage);
+                  const isRepair = stage === "repair";
+                  const displayItem = matching ?? (isRepair ? trajectory.find((item) => item.step === "repairer") : undefined);
+                  const stageStatus = displayItem?.status ?? (index < 2 && trajectory.length ? "complete" : "pending");
+                  return (
+                    <div className={\`timelineStage \${stageStatus}\`} key={\`\${stage}-\${index}\`}>
+                      <div className="timelineNode">{statusIcon(stageStatus)}</div>
+                      <div className="timelineText">
+                        <strong>{stageLabels[stage]}</strong>
+                        <span>{displayItem?.detail ?? (stage === "repair" ? "Only runs when verification fails." : "Waiting for this stage.")}</span>
+                      </div>
+                      {displayItem?.iteration != null && <small>#{displayItem.iteration}</small>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="executionLower">
+                <div className="rolePanel">
+                  <div className="miniTitle">WHAT THE SYSTEM ACTUALLY DID</div>
+                  <div className="roleList">
+                    {agents.map((agent, index) => (
+                      <div className="roleRow" key={\`\${agent.role}-\${index}\`}>
+                        <span className={\`roleStatus \${agent.status}\`}>{statusIcon(agent.status)}</span>
+                        <div>
+                          <strong>{agent.role}</strong>
+                          <p>{roleDescriptions[agent.role] ?? agent.detail}</p>
+                        </div>
+                        <span className="roleState">{agent.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="proofPanel">
+                  <div className="miniTitle">WHY CAN WE TRUST THIS RESULT?</div>
+                  <div className="proofCount">
+                    <strong>{result.verification?.checks?.length ?? 0}</strong>
+                    <span>verification gates</span>
+                  </div>
+                  <div className="proofList">
+                    {evidence.map((item, index) => (
+                      <div className="proofRow" key={\`\${item.claim}-\${index}\`}>
+                        <span className="proofCheck">{item.status === "verified" ? "✓" : "×"}</span>
+                        <div>
+                          <strong>{item.claim}</strong>
+                          <p>{item.evidence}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="ledgerCard">
+              <div className="sectionHeader">
+                <div>
+                  <div className="sectionEyebrow">03 / DECISION LEDGER</div>
+                  <h2>Every important decision leaves a record.</h2>
+                </div>
+                <span className="ledgerId">{result.run_id ?? "RUN"}</span>
+              </div>
+
+              <div className="ledgerGrid">
+                <div><span>ACTION</span><strong>{result.decision?.action ?? "—"}</strong></div>
+                <div><span>POLICY</span><strong>{result.decision?.policy_action ?? "—"}</strong></div>
+                <div><span>RISK</span><strong>{result.decision?.risk ?? "—"}</strong></div>
+                <div><span>REASON CODE</span><strong>{result.decision?.reason_code ?? "—"}</strong></div>
+              </div>
+              <div className="ledgerReason">
+                <span>DECISION</span>
+                <p>{result.decision?.reason ?? result.output ?? "No decision reason returned."}</p>
+              </div>
+            </section>
+
+            <section className="taskReceipt">
+              <div>
+                <div className="sectionEyebrow">TASK RECEIPT</div>
+                <strong>{result.task ?? task}</strong>
+              </div>
+              <button className="ghostButton" onClick={() => setResult(null)}>Run another job</button>
+            </section>
+
+            <details className="advancedTrace">
+              <summary>Advanced runtime trace</summary>
+              <pre>{result.output}</pre>
+            </details>
+          </>
+        )}
+      </main>
+    </div>
+  );
 }
