@@ -124,44 +124,77 @@ export default function AgentControlPlane() {
       </header>
 
       <main className="controlContent">
-        <section className="controlHero">
-          <div className="heroCopy">
-            <div className="heroEyebrow">CONTROLLED AUTONOMY</div>
-            <h1>Give AI a job. Get a verified decision.</h1>
-            <p>
-              The control plane plans, routes, executes, repairs and verifies the work —
-              then refuses to claim success without evidence.
+        <section className="sixSecondHero">
+          <div className="heroStory">
+            <div className="heroEyebrow">AI WORK, WITH A STOP CONDITION</div>
+            <h1>AI can do the work.<br /><em>We make it prove the work.</em></h1>
+            <p className="heroLead">
+              Give an AI a real engineering job. If it fails, the system repairs it.
+              If the proof does not pass, it never gets to say <strong>DONE.</strong>
             </p>
+
+            <div className="heroProofLine">
+              <span>DO THE WORK</span><b>→</b><span>CATCH FAILURE</span><b>→</b><span>REPAIR</span><b>→</b><span>PROVE</span>
+            </div>
+
+            <div className="heroActions">
+              <button className="runButton heroRun" onClick={run} disabled={running || !task.trim()}>
+                {running ? "AI is working…" : "See the agent prove a fix →"}
+              </button>
+              <span className="heroSub">One run. One decision. Evidence attached.</span>
+            </div>
           </div>
 
-          <div className="taskCommand">
-            <div className="commandTop">
+          <div className="proofDemo">
+            <div className="proofDemoTop">
               <div>
-                <div className="commandLabel">TASK</div>
-                <div className="commandHint">What should the system accomplish?</div>
+                <span className="demoKicker">REAL ENGINEERING TASK</span>
+                <strong>Fix failing CI</strong>
               </div>
-              <span className="commandStatus">READY</span>
+              <span className="demoLive"><i /> {running ? "WORKING" : "READY"}</span>
             </div>
-            <textarea
-              className="commandInput"
-              rows={3}
-              value={task}
-              onChange={(e) => setTask(e.target.value)}
-              aria-label="Agent task"
-            />
-            <div className="commandFooter">
-              <div className="policyChips">
-                <span>Cost ≤ ${maxCost.toFixed(2)}</span>
-                <span>Repair ≤ ${maxIterations}</span>
-                <span>Verification required</span>
+
+            <div className="demoTask">
+              <span>INPUT</span>
+              <p>{task}</p>
+            </div>
+
+            <div className="demoFlow">
+              <div className="demoStep done"><b>01</b><span>Investigate</span><i>✓</i></div>
+              <div className="demoStep done"><b>02</b><span>Change code</span><i>✓</i></div>
+              <div className="demoStep repair"><b>03</b><span>Test fails</span><i>!</i></div>
+              <div className="demoStep done"><b>04</b><span>Repair</span><i>✓</i></div>
+              <div className="demoStep verified"><b>05</b><span>Prove result</span><i>✓</i></div>
+            </div>
+
+            <div className="demoOutcome">
+              <div>
+                <span>FINAL DECISION</span>
+                <strong>VERIFIED</strong>
               </div>
-              <button className="runButton" onClick={run} disabled={running || !task.trim()}>
-                {running ? "Running control plane…" : "Start controlled run →"}
-              </button>
+              <div className="demoMetric"><span>TIME</span><b>seconds</b></div>
+              <div className="demoMetric"><span>PROOF</span><b>attached</b></div>
             </div>
+            <div className="demoTagline">No proof → no DONE.</div>
           </div>
         </section>
 
+        <section className="whatThisIs">
+          <div className="sectionEyebrow">THE PRODUCT IN ONE SENTENCE</div>
+          <h2>An execution layer that <span>controls AI work from start to proof.</span></h2>
+          <div className="threeAnswers">
+            <div><b>WHAT GOES IN</b><strong>A job</strong><p>“Fix this CI failure.” “Review this change.” “Complete this task.”</p></div>
+            <div><b>WHAT HAPPENS</b><strong>Work + repair</strong><p>Agents execute inside limits and recover from failed verification.</p></div>
+            <div><b>WHAT COMES OUT</b><strong>Verified outcome</strong><p>A decision, measurable run, and evidence showing why it passed or stopped.</p></div>
+          </div>
+        </section>
+
+        <section className="controlStrip">
+          <div><span>CONTROL</span><strong>Cost + tool + retry limits</strong></div>
+          <div><span>RECOVERY</span><strong>Bounded repair loops</strong></div>
+          <div><span>VERIFICATION</span><strong>Evidence before success</strong></div>
+          <div><span>RECORD</span><strong>Decision ledger</strong></div>
+        </section>
         {error && (
           <section className="errorBanner">
             <strong>RUN FAILED</strong>
