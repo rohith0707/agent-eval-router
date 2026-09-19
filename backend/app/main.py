@@ -81,8 +81,13 @@ async def run_autonomous_agent(request: AgentRequest) -> dict:
                             max_cost_usd=request.max_cost_usd, max_tokens=request.max_tokens,
                             max_iterations=request.max_iterations, max_wall_time_ms=request.max_wall_time_ms,
                             max_failures=request.max_failures)
+    role_map = {"plan": "Investigator", "route": "Orchestrator", "tool": "Tool Executor", "execute": "Implementer", "verify": "Verifier", "loop": "Repair Controller", "policy": "Policy Gate"}
+    agents = [{"role": role_map.get(step.get("step"), step.get("step", "worker").title()),
+               "status": step.get("status", "unknown"), "detail": step.get("detail", "")}
+              for step in state.get("trajectory", [])]
     return {
         "run_id": state.get("run_id"), "status": state.get("status"), "task": state.get("task"),
+        "agents": agents,
         "task_type": state.get("task_type"), "provider": state.get("provider"), "model": state.get("model"),
         "quality": state.get("quality"), "latency_ms": state.get("latency_ms"), "cost_usd": state.get("cost_usd"),
         "total_cost_usd": state.get("total_cost_usd", 0.0), "output": state.get("output"),
