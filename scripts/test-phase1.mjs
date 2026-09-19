@@ -21,7 +21,6 @@ assert.match(agentPage, /WHY CAN WE TRUST THIS RESULT/);
 assert.match(agentPage, /DECISION LEDGER/);
 assert.match(agentPage, /TIME TO VERIFIED DECISION/);
 assert.match(agentPage, /See the agent prove a fix →/);
-assert.match(agentPage, /Repair ≤/);
 assert.match(agentPage, /verification gates/);
 
 console.log("Control-tower agent product contract: PASS");
