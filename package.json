@@ -17,12 +17,13 @@
     "test:meta-contract": "node scripts/test-meta-contract.mjs",
     "test:agentic-runtime": "node scripts/test-agentic-runtime-contract.mjs",
     "test:experiment-batching": "node scripts/test-experiment-batching.mjs",
-    "test": "npm run test:phase1 && npm run test:grader && npm run test:regression-gate && npm run test:benchmark-evidence && npm run test:benchmark-batching && npm run test:benchmark-reliability && npm run test:provider-registry && npm run test:meta-contract && npm run test:agentic-runtime && npm run test:experiment-batching",
+    "test": "npm run test:phase1 && npm run test:grader && npm run test:regression-gate && npm run test:benchmark-evidence && npm run test:benchmark-batching && npm run test:benchmark-reliability && npm run test:provider-registry && npm run test:meta-contract && npm run test:agentic-runtime && npm run test:experiment-batching && npm run test:production-benchmark",
     "validate:benchmark": "node scripts/validate-benchmark.mjs",
     "validate:benchmark:grader": "node scripts/validate-benchmark-grader.mjs",
     "validate:experiment": "node scripts/validate-experiment.mjs",
     "validate:production-contract": "node scripts/validate-production-contract.mjs",
-    "db:migrate": "RUN_DB_MIGRATIONS=1 node scripts/vercel-build.mjs"
+    "db:migrate": "RUN_DB_MIGRATIONS=1 node scripts/vercel-build.mjs",
+    "test:production-benchmark": "node scripts/test-production-benchmark-contract.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
