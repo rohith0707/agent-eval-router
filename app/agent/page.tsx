@@ -151,8 +151,8 @@ export default function AgentControlPlane() {
             />
             <div className="commandFooter">
               <div className="policyChips">
-                <span>Cost ≤ \${maxCost.toFixed(2)}</span>
-                <span>Repair ≤ \${maxIterations}</span>
+                <span>Cost ≤ ${maxCost.toFixed(2)}</span>
+                <span>Repair ≤ ${maxIterations}</span>
                 <span>Verification required</span>
               </div>
               <button className="runButton" onClick={run} disabled={running || !task.trim()}>
@@ -216,13 +216,13 @@ export default function AgentControlPlane() {
                 </div>
                 <div className="decisionStamp">
                   <span>TIME TO VERIFIED DECISION</span>
-                  <strong>{latency != null ? \`\${(latency / 1000).toFixed(2)}s\` : "—"}</strong>
+                  <strong>{latency != null ? `${(latency / 1000).toFixed(2)}s` : "—"}</strong>
                 </div>
               </div>
 
               <div className="outcomeMetrics">
-                <div><span>COST</span><strong>{cost != null ? \`\$\${cost.toFixed(3)}\` : "—"}</strong></div>
-                <div><span>QUALITY</span><strong>{quality != null ? \`\${Math.round(quality * 100)}%\` : "—"}</strong></div>
+                <div><span>COST</span><strong>{cost != null ? `\$${cost.toFixed(3)}` : "—"}</strong></div>
+                <div><span>QUALITY</span><strong>{quality != null ? `${Math.round(quality * 100)}%` : "—"}</strong></div>
                 <div><span>ITERATIONS</span><strong>{result.iteration ?? "—"}</strong></div>
                 <div><span>EVIDENCE</span><strong>{result.decision?.evidence_count ?? evidence.length}</strong></div>
               </div>
@@ -244,7 +244,7 @@ export default function AgentControlPlane() {
                   const displayItem = matching ?? (isRepair ? trajectory.find((item) => item.step === "repairer") : undefined);
                   const stageStatus = displayItem?.status ?? (index < 2 && trajectory.length ? "complete" : "pending");
                   return (
-                    <div className={\`timelineStage \${stageStatus}\`} key={\`\${stage}-\${index}\`}>
+                    <div className={`timelineStage ${stageStatus}`} key={`${stage}-${index}`}>
                       <div className="timelineNode">{statusIcon(stageStatus)}</div>
                       <div className="timelineText">
                         <strong>{stageLabels[stage]}</strong>
@@ -261,8 +261,8 @@ export default function AgentControlPlane() {
                   <div className="miniTitle">WHAT THE SYSTEM ACTUALLY DID</div>
                   <div className="roleList">
                     {agents.map((agent, index) => (
-                      <div className="roleRow" key={\`\${agent.role}-\${index}\`}>
-                        <span className={\`roleStatus \${agent.status}\`}>{statusIcon(agent.status)}</span>
+                      <div className="roleRow" key={`${agent.role}-${index}`}>
+                        <span className={`roleStatus ${agent.status}`}>{statusIcon(agent.status)}</span>
                         <div>
                           <strong>{agent.role}</strong>
                           <p>{roleDescriptions[agent.role] ?? agent.detail}</p>
@@ -281,7 +281,7 @@ export default function AgentControlPlane() {
                   </div>
                   <div className="proofList">
                     {evidence.map((item, index) => (
-                      <div className="proofRow" key={\`\${item.claim}-\${index}\`}>
+                      <div className="proofRow" key={`${item.claim}-${index}`}>
                         <span className="proofCheck">{item.status === "verified" ? "✓" : "×"}</span>
                         <div>
                           <strong>{item.claim}</strong>
