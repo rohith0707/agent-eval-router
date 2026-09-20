@@ -11,7 +11,7 @@ assert.match(route, /maxConcurrent = Math\.max/);
 assert.match(route, /type: "parallel_proof"/);
 assert.match(route, /Multiple provider calls overlapped/);
 assert.match(route, /expectedProviders/);
-assert.match(page, /CONTROL-PLANE ARCHITECTURE/);
+assert.match(page, /<summary><span>Architecture<\/span>/);
 assert.match(page, /IDENTITY \/ PERMISSION/);
 assert.match(page, /POLICY \+ RISK/);
 assert.match(page, /ALLOW \/ REVIEW \/ BLOCK/);
