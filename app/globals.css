@@ -2975,3 +2975,50 @@ html, body {
   border-color:rgba(255,255,255,.12);
   background:rgba(255,255,255,.03);
 }
+
+
+.repositoryContextV2 {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  margin:8px 14px 0;
+  padding:11px 12px;
+  border:1px solid rgba(94,231,160,.14);
+  border-radius:8px;
+  background:rgba(94,231,160,.025);
+}
+.repositoryContextV2 div { min-width:0; }
+.repositoryContextV2 span:first-child {
+  display:block;
+  color:#62806f;
+  font:800 7px var(--font-geist-mono);
+  letter-spacing:.11em;
+}
+.repositoryContextV2 strong {
+  display:block;
+  margin-top:5px;
+  color:#c5e2d0;
+  font-size:9px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.repositoryContextV2 small {
+  display:block;
+  margin-top:4px;
+  color:#667b6e;
+  font-size:7px;
+  line-height:1.4;
+}
+.repositoryBadge {
+  flex-shrink:0;
+  padding:5px 7px;
+  border:1px solid rgba(94,231,160,.16);
+  border-radius:999px;
+  color:#79dba0;
+  font:800 7px var(--font-geist-mono);
+}
+@media(max-width:600px) {
+  .repositoryContextV2 { align-items:flex-start; flex-direction:column; }
+}
