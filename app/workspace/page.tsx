@@ -11,6 +11,13 @@ type Deliverable = {
 };
 type Result = {
   task?: string;
+  repository?: {
+    url?: string;
+    defaultBranch?: string;
+    inspectedFiles?: string[];
+    rootFileCount?: number;
+    provenance?: string;
+  };
   task_type?: string;
   provenance?: string;
   run_id?: string;
@@ -214,6 +221,20 @@ export default function ExecutionWorkspace() {
                   <strong>{result?.task_type ? result.task_type + " workflow" : "Execution result"}</strong>
                   <p>{result?.output ?? "No result has been produced yet."}</p>
                 </div>
+
+                {result?.repository && (
+                  <div className="repositoryContextV2">
+                    <div>
+                      <span>REPOSITORY CONTEXT</span>
+                      <strong>{result.repository.url}</strong>
+                      <small>
+                        Inspected {result.repository.inspectedFiles?.length ?? 0} relevant files on{" "}
+                        {result.repository.defaultBranch ?? "the default branch"} · read-only
+                      </small>
+                    </div>
+                    <span className="repositoryBadge">LIVE GITHUB</span>
+                  </div>
+                )}
 
                 <div className="artifactSectionsV2">
                   {(result?.deliverable?.sections ?? []).map((section) => (
