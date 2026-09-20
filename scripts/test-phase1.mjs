@@ -20,7 +20,7 @@ assert.match(agentPage, /REAL WORK, NOT CHAT/);
 assert.match(agentPage, /WHY THIS CAN BE TRUSTED/);
 assert.match(agentPage, /decision ledger and runtime detail/);
 assert.match(agentPage, /TIME TO DECISION/);
-assert.match(agentPage, /Run control plane →/);
+assert.match(agentPage, /Run here →/);
 assert.match(agentPage, /verification gates/);
 
 console.log("Control-tower agent product contract: PASS");
