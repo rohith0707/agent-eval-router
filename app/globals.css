@@ -2040,3 +2040,107 @@ html, body {
   .deepDiveGrid > div:nth-child(2) { border-right:0; }
   .deepDiveGrid > div:nth-child(-n+2) { border-bottom:1px solid rgba(255,255,255,.06); }
 }
+
+
+.routerProductCard.failed {
+  border-color: rgba(255,123,123,.2);
+  background: rgba(255,123,123,.025);
+}
+.routerProductCard.not_configured {
+  opacity:.58;
+  border-style:dashed;
+}
+.routerDiagnostic {
+  display:grid;
+  gap:5px;
+  margin-top:13px;
+  padding:10px;
+  border-radius:7px;
+  font-size:9px;
+  line-height:1.45;
+}
+.routerDiagnostic.muted {
+  border:1px solid rgba(255,255,255,.06);
+  color:#667282;
+  background:rgba(255,255,255,.018);
+}
+.routerDiagnostic.error {
+  border:1px solid rgba(255,123,123,.16);
+  background:rgba(255,123,123,.045);
+  color:#d78e8e;
+}
+.routerDiagnostic.error strong {
+  color:#f0a1a1;
+  font:800 8px var(--font-geist-mono);
+  letter-spacing:.08em;
+}
+.routerDiagnostic.error span {
+  color:#9b6f73;
+  overflow-wrap:anywhere;
+}
+.routerOutput,
+.routerDiagnostics {
+  margin-top:9px;
+  border:1px solid rgba(255,255,255,.075);
+  border-radius:9px;
+  overflow:hidden;
+  background:rgba(255,255,255,.015);
+}
+.routerOutputHeader {
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  align-items:center;
+  padding:13px 15px;
+  border-bottom:1px solid rgba(255,255,255,.065);
+}
+.routerOutputHeader span {
+  color:#697585;
+  font:800 8px var(--font-geist-mono);
+  letter-spacing:.12em;
+}
+.routerOutputHeader strong {
+  display:block;
+  margin-top:4px;
+  color:#dfe4e9;
+  font-size:10px;
+}
+.routerOutput > pre {
+  max-height:360px;
+  overflow:auto;
+  margin:0;
+  padding:16px;
+  color:#b9c2cd;
+  background:#060a0f;
+  white-space:pre-wrap;
+  font:10px/1.62 var(--font-geist-mono);
+}
+.routerDiagnostics { padding-bottom:4px; }
+.diagnosticRow {
+  display:grid;
+  grid-template-columns:140px 70px 1fr;
+  align-items:start;
+  gap:10px;
+  padding:10px 15px;
+  border-top:1px solid rgba(255,255,255,.05);
+}
+.diagnosticRow strong {
+  color:#d8dee5;
+  font-size:10px;
+}
+.diagnosticRow > span {
+  color:#dc9898;
+  font:8px var(--font-geist-mono);
+}
+.diagnosticRow p {
+  margin:0;
+  color:#798493;
+  font-size:9px;
+  line-height:1.45;
+  overflow-wrap:anywhere;
+}
+
+@media(max-width:600px) {
+  .routerOutputHeader { align-items:flex-start; flex-direction:column; }
+  .diagnosticRow { grid-template-columns:1fr; gap:4px; }
+}
