@@ -53,12 +53,11 @@ const researchAcceptance = [
 
 function statusFor(result: Result | null) {
   if (!result) return "READY";
-  return result.verification?.passed ? "VERIFIED" : "STOPPED";
+  return result.verification?.passed ? "VERIFIED" : "REVIEW";
 }
 
 export default function ExecutionWorkspace() {
   const [task, setTask] = useState(defaultTask);
-  const [demo, setDemo] = useState(true);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +68,6 @@ export default function ExecutionWorkspace() {
     const incoming = params.get("task");
     const mode = params.get("mode");
     if (incoming?.trim()) setTask(incoming);
-    if (mode === "live") setDemo(false);
   }, []);
 
   async function run() {
@@ -78,7 +76,7 @@ export default function ExecutionWorkspace() {
     setResult(null);
     setActiveTab("result");
     try {
-      const endpoint = demo ? "/api/agent/demo" : "/api/agent";
+      const endpoint = "/api/agent";
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -135,12 +133,11 @@ export default function ExecutionWorkspace() {
           <span><strong>Agent Eval Router</strong><small>Execution workspace</small></span>
         </a>
         <div className="workspaceTopMeta">
-          <span className={demo ? "modeBadge demo" : "modeBadge live"}>{demo ? "DEMO" : "LIVE"}</span>
+          <span className="modeBadge live">LIVE RUNTIME</span>
           <span className="taskTypeBadge">{runLabel}</span>
-          <span className="statusBadge"><i className={verified ? "ok" : status === "STOPPED" ? "bad" : ""} />{running ? "RUNNING" : status}</span>
+          <span className="statusBadge"><i className={verified ? "ok" : status === "REVIEW" ? "bad" : ""} />{running ? "RUNNING" : status}</span>
         </div>
         <div className="workspaceTopActions">
-          <button onClick={() => setDemo((value) => !value)}>{demo ? "Use live" : "Use demo"}</button>
           <a href="/">Product ↗</a>
         </div>
       </header>
@@ -154,7 +151,7 @@ export default function ExecutionWorkspace() {
         <div className="introState">
           <span>EXECUTION STATE</span>
           <strong>{running ? "Processing request" : verified ? "Verified outcome" : result ? "Needs review" : "Ready for work"}</strong>
-          <small>{result?.provenance === "SIMULATED_DEMO" ? "Simulation is clearly marked. Live runs use the configured runtime." : "Live runtime"}</small>
+          <small>{result?.provenance === "VERIFICATION_INCOMPLETE" ? "Completion withheld because independent verification is unavailable." : "Live runtime"}</small>
         </div>
       </section>
 
@@ -318,7 +315,7 @@ export default function ExecutionWorkspace() {
 
       <footer className="workspaceFooterV2">
         <span>NO PROOF → NO DONE.</span>
-        <span>{demo ? "Demo mode — the UI and decision path are real; external execution is simulated." : "Live mode — execution depends on configured runtime infrastructure."}</span>
+        <span>Live runtime — completion requires independent verification.</span>
       </footer>
     </main>
   );
