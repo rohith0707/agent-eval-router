@@ -27,3 +27,7 @@ console.log("Control-tower agent product contract: PASS");
 
 assert.match(agentPage, /THE PRODUCT IN ONE SENTENCE/);
 assert.match(agentPage, /No proof → no DONE\./);
+
+assert.match(agentPage, /LIVE ROUTER/);
+assert.match(agentPage, /RUNNING IN PARALLEL/);
+assert.match(agentPage, /ROUTER DECISION/);
