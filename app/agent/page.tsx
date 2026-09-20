@@ -71,7 +71,8 @@ export default function AgentControlPlane() {
   const [error, setError] = useState<string | null>(null);
   const [routerCards, setRouterCards] = useState<RouterCard[]>([]);
   const [selectedRoute, setSelectedRoute] = useState<RouterCard | null>(null);
-  const [routerRunning, setRouterRunning] = useState(false);\n  const [parallelProof, setParallelProof] = useState<{ expectedProviders: number; configuredProviders: number; completedProviders: number; maxConcurrent: number; wallClockMs: number; proof: string } | null>(null);
+  const [routerRunning, setRouterRunning] = useState(false);
+  const [parallelProof, setParallelProof] = useState<{ expectedProviders: number; configuredProviders: number; completedProviders: number; maxConcurrent: number; wallClockMs: number; proof: string } | null>(null);
 
   async function run() {
     setRunning(true);
@@ -120,7 +121,8 @@ export default function AgentControlPlane() {
         const { value, done } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
+        const lines = buffer.split("
+");
         buffer = lines.pop() ?? "";
         for (const raw of lines) {
           if (!raw.trim()) continue;
@@ -129,7 +131,9 @@ export default function AgentControlPlane() {
             setRouterCards(event.providers.map((item: RouterCard) => ({ ...item, status: "running" })));
           } else if (event.type === "result") {
             setRouterCards((cards) => cards.map((card) => card.provider === event.provider ? { ...card, ...event } : card));
-          } else if (event.type === "parallel_proof") {\n            setParallelProof(event);\n          } else if (event.type === "selected") {
+          } else if (event.type === "parallel_proof") {
+            setParallelProof(event);
+          } else if (event.type === "selected") {
             setSelectedRoute(event.provider ? event : null);
           } else if (event.type === "error") {
             throw new Error(event.message);
@@ -259,7 +263,14 @@ export default function AgentControlPlane() {
                 </div>
               ))}
             </div>
-            {parallelProof && (\n              <div className="routeDecision">\n                <span>PARALLEL PROOF</span>\n                <strong>{parallelProof.configuredProviders}/{parallelProof.expectedProviders} live · {parallelProof.maxConcurrent} concurrent</strong>\n                <p>{parallelProof.proof} Wall clock: {parallelProof.wallClockMs}ms.</p>\n              </div>\n            )}\n            {selectedRoute && (
+            {parallelProof && (
+              <div className="routeDecision">
+                <span>PARALLEL PROOF</span>
+                <strong>{parallelProof.configuredProviders}/{parallelProof.expectedProviders} live · {parallelProof.maxConcurrent} concurrent</strong>
+                <p>{parallelProof.proof} Wall clock: {parallelProof.wallClockMs}ms.</p>
+              </div>
+            )}
+            {selectedRoute && (
               <div className="routeDecision">
                 <span>ROUTER DECISION</span>
                 <strong>{selectedRoute.label} / {selectedRoute.model}</strong>
@@ -269,7 +280,12 @@ export default function AgentControlPlane() {
           </section>
         )}
 
-        <section className="whatThisIs">\n          <div className="sectionEyebrow">CONTROL-PLANE ARCHITECTURE</div>\n          <h2>Every autonomous action passes through <span>a control boundary.</span></h2>\n          <div className="heroProofLine architectureFlow"><span>AGENT</span><b>→</b><span>IDENTITY / PERMISSION</span><b>→</b><span>POLICY + RISK</span><b>→</b><span>ALLOW / REVIEW / BLOCK</span><b>→</b><span>ROUTER + TOOLS</span><b>→</b><span>VERIFY</span><b>→</b><span>PROOF + LEDGER</span><b>→</b><span>EVAL / REPLAY</span></div>\n\n
+        <section className="whatThisIs">
+          <div className="sectionEyebrow">CONTROL-PLANE ARCHITECTURE</div>
+          <h2>Every autonomous action passes through <span>a control boundary.</span></h2>
+          <div className="heroProofLine architectureFlow"><span>AGENT</span><b>→</b><span>IDENTITY / PERMISSION</span><b>→</b><span>POLICY + RISK</span><b>→</b><span>ALLOW / REVIEW / BLOCK</span><b>→</b><span>ROUTER + TOOLS</span><b>→</b><span>VERIFY</span><b>→</b><span>PROOF + LEDGER</span><b>→</b><span>EVAL / REPLAY</span></div>
+
+
           <div className="sectionEyebrow">THE PRODUCT IN ONE SENTENCE</div>
           <h2>An execution layer that <span>controls AI work from start to proof.</span></h2>
           <div className="threeAnswers">
