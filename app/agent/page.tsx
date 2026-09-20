@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 type Agent = { role: string; status: string; detail?: string };
-type RouterCard = { provider: string; label: string; model: string; status: string; quality?: number; latencyMs?: number; costUsd?: number; score?: number; preview?: string; startedAt?: number; completedAt?: number };
+type RouterCard = { provider: string; label: string; model: string; status: string; outcome?: string; quality?: number; latencyMs?: number; costUsd?: number; score?: number; preview?: string; output?: string; error?: string; detail?: string; statusCode?: number; configured?: boolean; startedAt?: number; completedAt?: number };
 type Result = {
   task?: string;
   provenance?: string;
@@ -72,7 +72,7 @@ export default function AgentControlPlane() {
   const [routerCards, setRouterCards] = useState<RouterCard[]>([]);
   const [selectedRoute, setSelectedRoute] = useState<RouterCard | null>(null);
   const [routerRunning, setRouterRunning] = useState(false);
-  const [parallelProof, setParallelProof] = useState<{ expectedProviders: number; configuredProviders: number; completedProviders: number; maxConcurrent: number; wallClockMs: number; proof: string } | null>(null);
+  const [parallelProof, setParallelProof] = useState<{ expectedProviders: number; configuredProviders: number; completedProviders: number; successfulProviders?: number; failedProviders?: number; maxConcurrent: number; wallClockMs: number; proof: string } | null>(null);
 
   async function run() {
     setRunning(true);
@@ -106,6 +106,7 @@ export default function AgentControlPlane() {
     setRouterRunning(true);
     setRouterCards([]);
     setSelectedRoute(null);
+    setParallelProof(null);
     setError(null);
     try {
       const response = await fetch("/api/router/stream", {
@@ -403,11 +404,32 @@ export default function AgentControlPlane() {
                 <div className={`routerProductCard ${card.status} ${selectedRoute?.provider === card.provider ? "winner" : ""}`} key={card.provider}>
                   <div className="routerProductTop">
                     <strong>{card.label}</strong>
-                    <span>{card.status === "running" ? "WORKING" : card.status === "failed" ? "FAILED" : selectedRoute?.provider === card.provider ? "SELECTED" : "DONE"}</span>
+                    <span>
+                      {card.status === "running"
+                        ? "WORKING"
+                        : card.status === "failed"
+                        ? "FAILED"
+                        : card.status === "not_configured"
+                        ? "NOT CONFIGURED"
+                        : selectedRoute?.provider === card.provider
+                        ? "SELECTED"
+                        : "DONE"}
+                    </span>
                   </div>
                   <small>{card.model}</small>
-                  <div className="routerProductBar"><i style={{ width: `${Math.max(8, Math.min(100, (card.score ?? 0) * 100))}%` }} /></div>
-                  <div className="routerProductStats"><span>{card.latencyMs ? `${card.latencyMs}ms` : "—"}</span><span>{card.costUsd != null ? `$${card.costUsd.toFixed(4)}` : "—"}</span><span>{card.quality ? `${Math.round(card.quality * 100)}%` : "—"}</span></div>
+                  {card.status === "not_configured" ? (
+                    <div className="routerDiagnostic muted">No credential configured for this provider.</div>
+                  ) : card.status === "failed" ? (
+                    <div className="routerDiagnostic error">
+                      <strong>{card.statusCode ? `HTTP ${card.statusCode}` : "Provider error"}</strong>
+                      <span>{card.error ?? card.preview ?? "Provider call failed."}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="routerProductBar"><i style={{ width: `${Math.max(8, Math.min(100, (card.score ?? 0) * 100))}%` }} /></div>
+                      <div className="routerProductStats"><span>{card.latencyMs ? `${card.latencyMs}ms` : "—"}</span><span>{card.costUsd != null ? `$${card.costUsd.toFixed(4)}` : "—"}</span><span>{card.quality ? `${Math.round(card.quality * 100)}%` : "—"}</span></div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -427,6 +449,41 @@ export default function AgentControlPlane() {
                 <p>Chosen using measured quality, latency and cost.</p>
               </div>
             )}
+
+            {selectedRoute && (() => {
+              const selectedCard = routerCards.find((card) => card.provider === selectedRoute.provider);
+              return selectedCard?.output ? (
+                <div className="routerOutput">
+                  <div className="routerOutputHeader">
+                    <div>
+                      <span>MODEL OUTPUT</span>
+                      <strong>{selectedCard.label} / {selectedCard.model}</strong>
+                    </div>
+                    <span>FULL RESPONSE</span>
+                  </div>
+                  <pre>{selectedCard.output}</pre>
+                </div>
+              ) : null;
+            })()}
+
+            {routerCards.some((card) => card.status === "failed") && (
+              <div className="routerDiagnostics">
+                <div className="routerOutputHeader">
+                  <div>
+                    <span>PROVIDER DIAGNOSTICS</span>
+                    <strong>Why some routes failed</strong>
+                  </div>
+                </div>
+                {routerCards.filter((card) => card.status === "failed").map((card) => (
+                  <div className="diagnosticRow" key={card.provider}>
+                    <strong>{card.label}</strong>
+                    <span>{card.statusCode ? `HTTP ${card.statusCode}` : "ERROR"}</span>
+                    <p>{card.error ?? card.preview ?? "Unknown provider failure."}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
           </section>
         )}
 
