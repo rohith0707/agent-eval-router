@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
   const configured = configuredProviders();
   const registry = modelRegistry();
-  const providers = (Object.keys(configured) as ProviderName[]).filter((provider) => configured[provider]);
+  const providers = (Object.keys(providerLabels) as ProviderName[]).filter((provider) => configured[provider]);
   const expectedProviders = Object.keys(providerLabels).length;
 
   const stream = new ReadableStream({
@@ -48,12 +48,13 @@ export async function POST(request: Request) {
         parallel: true,
         expectedProviders,
         configuredProviders: providers.length,
-        providers: providers.map((provider) => ({
+        providers: (Object.keys(providerLabels) as ProviderName[]).map((provider) => ({
           provider,
           label: providerLabels[provider],
-          model: registry[provider]?.[0] ?? "configured model",
-          status: "running",
-          startedAt: parallelStartedAt,
+          model: registry[provider]?.[0] ?? "no model configured",
+          status: configured[provider] ? "running" : "not_configured",
+          configured: configured[provider],
+          startedAt: configured[provider] ? parallelStartedAt : undefined,
         })),
       });
 
@@ -103,26 +104,39 @@ export async function POST(request: Request) {
               label: providerLabels[provider],
               model,
               status: "complete",
+              outcome: "success",
               quality: Number(quality.toFixed(3)),
               latencyMs,
               costUsd: result.estimatedCostUsd,
               score,
               preview: result.output.slice(0, 280),
+              output: result.output,
               startedAt,
               completedAt: Date.now(),
             };
             send({ type: "result", ...item });
             return item;
           } catch (error) {
+            const statusCode = typeof error === "object" && error && "statusCode" in error
+              ? Number((error as { statusCode?: unknown }).statusCode) || undefined
+              : undefined;
+            const detail = typeof error === "object" && error && "detail" in error
+              ? String((error as { detail?: unknown }).detail ?? "")
+              : "";
+            const message = error instanceof Error ? error.message : "Provider failed";
             const item = {
               provider,
               label: providerLabels[provider],
               model,
               status: "failed",
+              outcome: "error",
               latencyMs: Math.round(performance.now() - started),
               costUsd: 0,
               score: 0,
-              preview: error instanceof Error ? error.message.slice(0, 180) : "Provider failed",
+              preview: message.slice(0, 180),
+              error: message.slice(0, 500),
+              detail: detail.slice(0, 500),
+              statusCode,
               startedAt,
               completedAt: Date.now(),
             };
@@ -146,6 +160,8 @@ export async function POST(request: Request) {
         expectedProviders,
         configuredProviders: providers.length,
         completedProviders: results.filter(Boolean).length,
+        successfulProviders: results.filter((item) => item?.status === "complete").length,
+        failedProviders: results.filter((item) => item?.status === "failed").length,
         maxConcurrent,
         wallClockMs: parallelFinishedAt - parallelStartedAt,
         proof:
