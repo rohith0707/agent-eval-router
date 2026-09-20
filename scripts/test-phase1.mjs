@@ -15,12 +15,12 @@ assert.match(agentPage, /agents\?\s*:\s*Agent\[\]/);
 assert.match(agentPage, /const agents = result\?\.agents \?\? \[\];/);
 assert.match(agentPage, /trajectory\?\s*:\s*\{\s*step:\s*string;\s*status:\s*string/);
 assert.match(agentPage, /const trajectory = result\?\.trajectory \?\? \[\];/);
-assert.match(agentPage, /SIMULATED DEMO|DEMO/);
+assert.match(agentPage, /LIVE RUNTIME/);
 assert.match(agentPage, /REAL WORK, NOT CHAT/);
 assert.match(agentPage, /WHY THIS CAN BE TRUSTED/);
 assert.match(agentPage, /decision ledger and runtime detail/);
 assert.match(agentPage, /TIME TO DECISION/);
-assert.match(agentPage, /Run here →/);
+assert.match(agentPage, /Run task →/);
 assert.match(agentPage, /verification gates/);
 
 console.log("Control-tower agent product contract: PASS");
