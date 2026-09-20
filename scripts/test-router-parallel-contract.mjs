@@ -12,12 +12,14 @@ assert.match(route, /type: "parallel_proof"/);
 assert.match(route, /Multiple provider calls overlapped/);
 assert.match(route, /expectedProviders/);
 assert.match(page, /<summary><span>Architecture<\/span>/);
-assert.match(page, /IDENTITY \/ PERMISSION/);
+assert.match(page, /IDENTITY/);
 assert.match(page, /POLICY \+ RISK/);
 assert.match(page, /ALLOW \/ REVIEW \/ BLOCK/);
-assert.match(page, /ROUTER \+ TOOLS/);
+assert.match(page, /ROUTE \+ TOOLS/);
 assert.match(page, /PROOF \+ LEDGER/);
 assert.match(page, /EVAL \/ REPLAY/);
+assert.match(page, /UNDER THE HOOD/);
+assert.match(page, /Routing is a decision, not the product\./);
 assert.match(page, /PARALLEL PROOF/);
 assert.match(page, /maxConcurrent/);
 
