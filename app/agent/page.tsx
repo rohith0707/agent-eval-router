@@ -191,10 +191,10 @@ export default function AgentControlPlane() {
       <main className="productMain" id="top">
         <section className="productHero">
           <div className="productHeroCopy">
-            <div className="productKicker">AUTONOMOUS AI / EXECUTION CONTROL</div>
+            <div className="productKicker">AUTONOMOUS WORK / EXECUTION CONTROL</div>
             <h1>Make AI work.<br /><span>Make it earn DONE.</span></h1>
             <p>
-              Give an agent a real engineering task. The control plane routes the work,
+              Give an agent a real job. The control plane routes the work,
               enforces limits, recovers from failure, and requires evidence before success.
             </p>
             <div className="heroPills">
@@ -273,7 +273,7 @@ export default function AgentControlPlane() {
               <span className="sectionTag">REAL WORK, NOT CHAT</span>
               <h2>Give it the kind of task you would normally keep an engineer around for.</h2>
             </div>
-            <p>These are examples of the workload shape the control plane is designed to govern.</p>
+            <p>Examples of the real workloads the control plane is designed to execute, recover, and verify.</p>
           </div>
 
           <div className="workGrid">
