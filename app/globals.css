@@ -2144,3 +2144,31 @@ html, body {
   .routerOutputHeader { align-items:flex-start; flex-direction:column; }
   .diagnosticRow { grid-template-columns:1fr; gap:4px; }
 }
+
+.providerOutputs { display:grid; gap:6px; padding:7px; background:#06090e; }
+.providerOutput { border:1px solid rgba(255,255,255,.06); border-radius:7px; background:rgba(255,255,255,.018); overflow:hidden; }
+.providerOutput.selected { border-color:rgba(94,231,160,.22); background:rgba(94,231,160,.028); }
+.providerOutput summary {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:11px 12px;
+  cursor:pointer;
+  list-style:none;
+}
+.providerOutput summary::-webkit-details-marker { display:none; }
+.providerOutput summary strong { color:#cfd6df; font-size:10px; }
+.providerOutput summary span { color:#697584; font:8px var(--font-geist-mono); }
+.providerOutput.selected summary span { color:#79dca0; }
+.providerOutput pre {
+  margin:0;
+  padding:12px;
+  border-top:1px solid rgba(255,255,255,.05);
+  color:#aeb8c4;
+  white-space:pre-wrap;
+  overflow:auto;
+  max-height:260px;
+  background:#05080d;
+  font:9px/1.58 var(--font-geist-mono);
+}
