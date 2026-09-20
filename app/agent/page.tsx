@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 type Agent = { role: string; status: string; detail?: string };
-type Result = {
+type RouterCard = { provider: string; label: string; model: string; status: string; quality?: number; latencyMs?: number; costUsd?: number; score?: number; preview?: string };\ntype Result = {
   task?: string;
   provenance?: string;
   run_id?: string;
@@ -67,7 +67,7 @@ export default function AgentControlPlane() {
   const [demo, setDemo] = useState(true);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);\n  const [routerCards, setRouterCards] = useState<RouterCard[]>([]);\n  const [selectedRoute, setSelectedRoute] = useState<RouterCard | null>(null);\n  const [routerRunning, setRouterRunning] = useState(false);
 
   async function run() {
     setRunning(true);
@@ -94,6 +94,48 @@ export default function AgentControlPlane() {
       setError(e instanceof Error ? e.message : "Could not reach agent backend.");
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function runLiveRouter() {
+    setRouterRunning(true);
+    setRouterCards([]);
+    setSelectedRoute(null);
+    setError(null);
+    try {
+      const response = await fetch("/api/router/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task, max_cost_usd: maxCost, max_tokens: 256 }),
+      });
+      if (!response.ok || !response.body) throw new Error("Live router stream unavailable.");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const raw of lines) {
+          if (!raw.trim()) continue;
+          const event = JSON.parse(raw);
+          if (event.type === "start") {
+            setRouterCards(event.providers.map((item: RouterCard) => ({ ...item, status: "running" })));
+          } else if (event.type === "result") {
+            setRouterCards((cards) => cards.map((card) => card.provider === event.provider ? { ...card, ...event } : card));
+          } else if (event.type === "selected") {
+            setSelectedRoute(event.provider ? event : null);
+          } else if (event.type === "error") {
+            throw new Error(event.message);
+          }
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Live router failed.");
+    } finally {
+      setRouterRunning(false);
     }
   }
 
@@ -138,9 +180,14 @@ export default function AgentControlPlane() {
             </div>
 
             <div className="heroActions">
-              <button className="runButton heroRun" onClick={run} disabled={running || !task.trim()}>
-                {running ? "AI is working…" : "See the agent prove a fix →"}
-              </button>
+              <div className="heroButtons">
+                <button className="runButton heroRun" onClick={runLiveRouter} disabled={routerRunning || !task.trim()}>
+                  {routerRunning ? "Router is comparing…" : "Watch the router work →"}
+                </button>
+                <button className="ghostButton heroDemoButton" onClick={run} disabled={running || !task.trim()}>
+                  {running ? "Running…" : "Run full proof"}
+                </button>
+              </div>
               <span className="heroSub">One run. One decision. Evidence attached.</span>
             </div>
           </div>
@@ -178,6 +225,45 @@ export default function AgentControlPlane() {
             <div className="demoTagline">No proof → no DONE.</div>
           </div>
         </section>
+
+        {(routerRunning || routerCards.length > 0 || selectedRoute) && (
+          <section className="liveRouter">
+            <div className="liveRouterHeader">
+              <div>
+                <div className="sectionEyebrow">LIVE ROUTER</div>
+                <h2>Four paths. <span>One decision.</span></h2>
+              </div>
+              <div className={routerRunning ? "routerLiveStatus active" : "routerLiveStatus"}>
+                <i /> {routerRunning ? "RUNNING IN PARALLEL" : selectedRoute ? "ROUTE SELECTED" : "READY"}
+              </div>
+            </div>
+            <div className="routerCards">
+              {routerCards.map((card) => (
+                <div className={`routerCard ${card.status} ${selectedRoute?.provider === card.provider ? "winner" : ""}`} key={card.provider}>
+                  <div className="routerCardTop">
+                    <strong>{card.label}</strong>
+                    <span>{card.status === "running" ? "..." : card.status === "failed" ? "FAILED" : selectedRoute?.provider === card.provider ? "SELECTED" : "DONE"}</span>
+                  </div>
+                  <small>{card.model}</small>
+                  <div className="routerBar"><i style={{ width: `${Math.max(8, Math.min(100, (card.score ?? 0) * 100))}%` }} /></div>
+                  <div className="routerStats">
+                    <span>{card.latencyMs ? `${card.latencyMs}ms` : "—"}</span>
+                    <span>{card.costUsd != null ? `${card.costUsd.toFixed(4)}` : "—"}</span>
+                    <span>{card.quality ? `${Math.round(card.quality * 100)}%` : "—"}</span>
+                  </div>
+                  {card.preview && <p>{card.preview}</p>}
+                </div>
+              ))}
+            </div>
+            {selectedRoute && (
+              <div className="routeDecision">
+                <span>ROUTER DECISION</span>
+                <strong>{selectedRoute.label} / {selectedRoute.model}</strong>
+                <p>Selected from live results using quality + latency + cost. Score {selectedRoute.score}.</p>
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="whatThisIs">
           <div className="sectionEyebrow">THE PRODUCT IN ONE SENTENCE</div>
