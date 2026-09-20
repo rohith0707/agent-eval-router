@@ -155,6 +155,12 @@ export default function AgentControlPlane() {
   const agents = result?.agents ?? [];
   const evidence = result?.evidence ?? [];
 
+  function openWorkspace() {
+    const url = "/workspace?task=" + encodeURIComponent(task) + (demo ? "&mode=demo" : "&mode=live");
+    const opened = window.open(url, "_blank", "noopener,noreferrer,width=1500,height=1000");
+    if (!opened) window.location.href = url;
+  }
+
   return (
     <div className="agentProduct">
       <header className="productNav">
@@ -225,8 +231,11 @@ export default function AgentControlPlane() {
                 <button className="secondaryAction" onClick={runLiveRouter} disabled={routerRunning || !task.trim()}>
                   {routerRunning ? "Comparing…" : "Compare routes"}
                 </button>
+                <button className="workspaceAction" onClick={openWorkspace} disabled={!task.trim()}>
+                  Open execution workspace ↗
+                </button>
                 <button className="primaryAction" onClick={run} disabled={running || !task.trim()}>
-                  {running ? "Running…" : "Run control plane →"}
+                  {running ? "Running…" : "Run here →"}
                 </button>
               </div>
             </div>
