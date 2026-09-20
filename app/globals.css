@@ -2942,3 +2942,36 @@ html, body {
   .receiptSurfaceV2 > div { border-right:0; }
   .workspaceFooterV2 { flex-direction:column; }
 }
+
+
+.taskExamples {
+  margin-top:12px;
+  padding-top:10px;
+  border-top:1px solid rgba(255,255,255,.05);
+}
+.taskExamples > span {
+  display:block;
+  margin-bottom:7px;
+  color:#5f6b7a;
+  font:800 8px var(--font-geist-mono);
+  letter-spacing:.12em;
+}
+.taskExamples > div {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.taskExamples button {
+  border:1px solid rgba(255,255,255,.065);
+  border-radius:999px;
+  background:rgba(255,255,255,.018);
+  color:#7c8897;
+  padding:6px 8px;
+  font-size:8px;
+  cursor:pointer;
+}
+.taskExamples button:hover {
+  color:#cbd3da;
+  border-color:rgba(255,255,255,.12);
+  background:rgba(255,255,255,.03);
+}
