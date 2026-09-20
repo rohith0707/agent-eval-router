@@ -450,21 +450,28 @@ export default function AgentControlPlane() {
               </div>
             )}
 
-            {selectedRoute && (() => {
-              const selectedCard = routerCards.find((card) => card.provider === selectedRoute.provider);
-              return selectedCard?.output ? (
-                <div className="routerOutput">
-                  <div className="routerOutputHeader">
-                    <div>
-                      <span>MODEL OUTPUT</span>
-                      <strong>{selectedCard.label} / {selectedCard.model}</strong>
-                    </div>
-                    <span>FULL RESPONSE</span>
+            {routerCards.some((card) => card.status === "complete" && card.output) && (
+              <div className="routerOutput">
+                <div className="routerOutputHeader">
+                  <div>
+                    <span>ALL PROVIDER OUTPUTS</span>
+                    <strong>Compare what each model actually returned</strong>
                   </div>
-                  <pre>{selectedCard.output}</pre>
+                  <span>{routerCards.filter((card) => card.status === "complete").length} RESPONSES</span>
                 </div>
-              ) : null;
-            })()}
+                <div className="providerOutputs">
+                  {routerCards.filter((card) => card.status === "complete" && card.output).map((card) => (
+                    <details className={`providerOutput ${selectedRoute?.provider === card.provider ? "selected" : ""}`} key={card.provider}>
+                      <summary>
+                        <strong>{card.label}</strong>
+                        <span>{selectedRoute?.provider === card.provider ? "SELECTED" : "COMPARE"} · {card.quality ? `${Math.round(card.quality * 100)}%` : "—"} · {card.latencyMs ? `${card.latencyMs}ms` : "—"}</span>
+                      </summary>
+                      <pre>{card.output}</pre>
+                    </details>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {routerCards.some((card) => card.status === "failed") && (
               <div className="routerDiagnostics">
