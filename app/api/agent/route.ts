@@ -130,22 +130,22 @@ async function verifyOutput(
       };
     }
     return {
-      passed: output.trim().length > 40,
-      quality: output.trim().length > 40 ? 0.72 : 0.35,
-      checks: ["non_empty_output", "verifier_response_unstructured"],
-      reason: "The live verifier responded, but its output was not valid verification JSON; only the minimum contract check was applied.",
-      provenance: "LIVE_CONTRACT_FALLBACK",
+      passed: false,
+      quality: 0.0,
+      checks: ["verifier_response_unstructured"],
+      reason: "The independent verifier responded, but its output was not valid verification JSON. Completion is withheld.",
+      provenance: "VERIFICATION_INCOMPLETE",
       provider: verifier.result.provider,
       model: verifier.result.model,
     };
   }
 
   return {
-    passed: output.trim().length > 40,
-    quality: output.trim().length > 40 ? 0.68 : 0.2,
-    checks: ["non_empty_output"],
-    reason: "No independent verifier provider was available. Only the deterministic output contract was checked.",
-    provenance: "DETERMINISTIC_CONTRACT",
+    passed: false,
+    quality: 0.0,
+    checks: ["independent_verifier_unavailable"],
+    reason: "No independent verifier provider is available. Completion is withheld.",
+    provenance: "VERIFICATION_INCOMPLETE",
     provider: workerProvider,
     model: "contract-check",
   };
