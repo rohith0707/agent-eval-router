@@ -5,7 +5,7 @@ const route = await readFile("app/api/router/stream/route.ts", "utf8");
 const page = await readFile("app/agent/page.tsx", "utf8");
 
 assert.match(route, /Promise\.all\(\s*providers\.map/);
-assert.match(route, /await callProvider\(/);
+assert.match(route, /runProviderCascade\(/);\nassert.match(route, /maxModelsPerProvider: 2/);
 assert.match(route, /let active = 0/);
 assert.match(route, /maxConcurrent = Math\.max/);
 assert.match(route, /type: "parallel_proof"/);
