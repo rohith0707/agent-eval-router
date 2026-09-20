@@ -10,6 +10,7 @@ from ..evaluation.quality import score_output
 from .decision import decide
 from .history import history_store
 from .tools import ToolExecutionError, execute_http_tool
+from .verification import verify_candidate
 
 
 def _classify_task(task: str) -> str:
@@ -140,20 +141,52 @@ async def execute_node(state: dict) -> dict:
 async def evaluate_node(state: dict) -> dict:
     attempts = state.get("attempts", [])
     if not attempts or not state.get("output"):
-        state["status"] = "failed"; state["failure_class"] = state.get("failure_class") or "infra_failed"
+        state["status"] = "failed"
+        state["failure_class"] = state.get("failure_class") or "infra_failed"
+        state["verification"] = {
+            "passed": False,
+            "quality": 0.0,
+            "checks": ["no_executable_result"],
+            "provenance": "VERIFICATION_INCOMPLETE",
+        }
         _append(state, "verify", "failed", "no executable result")
         history_store.record_decision(state, action="VERIFY", outcome="failed")
         return state
-    quality, checks = score_output(state.get("task", ""), state.get("output", ""))
+
+    deterministic_quality, deterministic_checks = score_output(
+        state.get("task", ""), state.get("output", "")
+    )
+    state["candidate_quality"] = deterministic_quality
+    attempts[-1]["candidate_quality"] = deterministic_quality
+
+    verification = await verify_candidate(
+        task=state.get("task", ""),
+        task_type=state.get("task_type", "auto"),
+        output=state.get("output", ""),
+        worker_provider=state.get("provider"),
+        max_tokens=state.get("max_tokens", 512),
+    )
+
+    checks = deterministic_checks + verification.get("checks", [])
+    passed = bool(verification.get("passed")) and verification.get("provenance") == "LIVE_INDEPENDENT_VERIFIER"
+    quality = float(verification.get("quality", 0.0))
     state["quality"] = quality
     attempts[-1]["quality"] = quality
-    threshold = state.get("quality_threshold", 0.7)
-    passed = quality >= threshold
-    attempts[-1]["status"] = "passed" if passed else "quality_failed"
-    state["verification"] = {"passed": passed, "quality": quality, "checks": checks, "provenance": "MEASURED"}
+    attempts[-1]["status"] = "passed" if passed else "verification_incomplete"
+
+    state["verification"] = {
+        **verification,
+        "checks": checks,
+        "candidate_quality": deterministic_quality,
+    }
     state["status"] = "done" if passed else "failed"
-    state["failure_class"] = None if passed else "quality_failure"
-    _append(state, "verify", "passed" if passed else "failed", f"quality={quality:.3f} checks={','.join(checks)}")
+    state["failure_class"] = None if passed else "verification_incomplete"
+
+    detail = (
+        f"independent_verifier={verification.get('provenance')} "
+        f"quality={quality:.3f} checks={','.join(checks[:8])}"
+    )
+    _append(state, "verify", "passed" if passed else "failed", detail)
     history_store.record_decision(state, action="VERIFY", outcome=state["status"])
     if passed:
         history_store.save_run(state)
