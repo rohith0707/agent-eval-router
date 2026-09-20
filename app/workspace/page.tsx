@@ -3,14 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 
 type Evidence = { claim: string; evidence: string; status: string };
+type Deliverable = {
+  type?: string;
+  title?: string;
+  summary?: string;
+  sections?: { title: string; body: string }[];
+};
 type Result = {
   task?: string;
+  task_type?: string;
   provenance?: string;
   run_id?: string;
   status?: string;
   loop_action?: string;
   iteration?: number;
   output?: string;
+  deliverable?: Deliverable;
   trajectory?: { step: string; status: string; detail?: string; iteration?: number }[];
   decision?: {
     action?: string;
@@ -24,35 +32,28 @@ type Result = {
   evidence?: Evidence[];
   total_cost_usd?: number;
   latency_ms?: number;
-  limits?: Record<string, number>;
 };
 
 const defaultTask =
   "Fix the failing CI contract test in the agent runtime, verify the fix, and stop only when the pipeline passes.";
 
-const acceptanceChecks = [
-  {
-    label: "Root cause",
-    detail: "Identify the failure from repository evidence, not model intuition.",
-  },
-  {
-    label: "Minimal change",
-    detail: "Produce the smallest corrective patch needed for the task.",
-  },
-  {
-    label: "Verification",
-    detail: "Run the required checks and surface the actual pass/fail state.",
-  },
-  {
-    label: "Completion proof",
-    detail: "Do not declare DONE until the evidence gates pass.",
-  },
+const engineeringAcceptance = [
+  ["Root cause", "Failure identified from evidence"],
+  ["Change", "Minimal corrective artifact"],
+  ["Verification", "Required checks pass"],
+  ["Completion", "Evidence supports the decision"],
+];
+
+const researchAcceptance = [
+  ["Scope", "Question and requested outcome identified"],
+  ["Answer", "Structured result returned"],
+  ["Evidence", "Current factual claims separated from assumptions"],
+  ["Completion", "Result boundary is explicit"],
 ];
 
 function statusFor(result: Result | null) {
   if (!result) return "READY";
-  if (result.verification?.passed) return "VERIFIED";
-  return "STOPPED";
+  return result.verification?.passed ? "VERIFIED" : "STOPPED";
 }
 
 export default function ExecutionWorkspace() {
@@ -61,6 +62,7 @@ export default function ExecutionWorkspace() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"result" | "activity" | "evidence">("result");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -74,6 +76,7 @@ export default function ExecutionWorkspace() {
     setRunning(true);
     setError(null);
     setResult(null);
+    setActiveTab("result");
     try {
       const endpoint = demo ? "/api/agent/demo" : "/api/agent";
       const res = await fetch(endpoint, {
@@ -81,7 +84,7 @@ export default function ExecutionWorkspace() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           task,
-          task_type: "coding",
+          task_type: "auto",
           constraints: {
             quality_floor: 0.7,
             max_cost_usd: 0.05,
@@ -98,14 +101,13 @@ export default function ExecutionWorkspace() {
     }
   }
 
-  const verified = !!result?.verification?.passed;
-  const evidenceCount = result?.evidence?.length ?? result?.verification?.checks?.length ?? 0;
-  const output = result?.output ?? "No agent output returned yet.";
-  const provenance = result?.provenance ?? result?.verification?.provenance ?? "UNKNOWN";
   const status = statusFor(result);
+  const verified = status === "VERIFIED";
+  const evidence = result?.evidence ?? [];
+  const checks = result?.verification?.checks ?? [];
+  const acceptance = result?.task_type === "research" ? researchAcceptance : engineeringAcceptance;
 
   const trace = useMemo(() => {
-    const items = result?.trajectory ?? [];
     const labels: Record<string, string> = {
       planner: "Plan",
       investigator: "Investigate",
@@ -116,240 +118,207 @@ export default function ExecutionWorkspace() {
       verifier: "Final verification",
       loop: "Completion gate",
     };
-    return items.map((item, index) => ({
+    return (result?.trajectory ?? []).map((item, index) => ({
       ...item,
-      index: index + 1,
+      number: String(index + 1).padStart(2, "0"),
       label: labels[item.step] ?? item.step,
     }));
   }, [result]);
 
+  const runLabel = result?.task_type ? result.task_type.toUpperCase() : "READY";
+
   return (
-    <main className="executionWorkspace">
-      <header className="workspaceNav">
-        <div className="workspaceBrand">
-          <span className="workspaceMark">A</span>
-          <div>
-            <strong>Agent Eval Router</strong>
-            <small>Execution workspace</small>
-          </div>
+    <main className="workspaceV2">
+      <header className="workspaceTopbar">
+        <a className="workspaceBrandV2" href="/">
+          <span className="workspaceLogoV2">A</span>
+          <span><strong>Agent Eval Router</strong><small>Execution workspace</small></span>
+        </a>
+        <div className="workspaceTopMeta">
+          <span className={demo ? "modeBadge demo" : "modeBadge live"}>{demo ? "DEMO" : "LIVE"}</span>
+          <span className="taskTypeBadge">{runLabel}</span>
+          <span className="statusBadge"><i className={verified ? "ok" : status === "STOPPED" ? "bad" : ""} />{running ? "RUNNING" : status}</span>
         </div>
-
-        <div className="workspaceNavCenter">
-          <span className={demo ? "workspaceMode demo" : "workspaceMode live"}>
-            {demo ? "SIMULATED RUNTIME" : "LIVE RUNTIME"}
-          </span>
-          <span className="workspaceStatus">
-            <i className={status === "VERIFIED" ? "good" : status === "STOPPED" ? "bad" : ""} />
-            {running ? "EXECUTING" : status}
-          </span>
-        </div>
-
-        <div className="workspaceNavActions">
-          <button onClick={() => setDemo((value) => !value)}>{demo ? "Switch to live" : "Use demo"}</button>
-          <a href="/">Back to product ↗</a>
+        <div className="workspaceTopActions">
+          <button onClick={() => setDemo((value) => !value)}>{demo ? "Use live" : "Use demo"}</button>
+          <a href="/">Product ↗</a>
         </div>
       </header>
 
-      <section className="workspaceHero">
+      <section className="workspaceIntroV2">
         <div>
-          <span className="workspaceKicker">AUTONOMOUS WORK / PROOF-FIRST EXECUTION</span>
-          <h1>Show the work.<br /><em>Then show why it is done.</em></h1>
-          <p>
-            This view separates the agent's claimed output from the acceptance contract and
-            the evidence that permits a final decision.
-          </p>
+          <span className="eyebrowV2">EXECUTION / OUTCOME / PROOF</span>
+          <h1>One task. One result.<br /><em>Every claim has a check.</em></h1>
+          <p>Turn an agent request into a visible outcome, the artifact it produced, and the evidence behind the final decision.</p>
         </div>
-        <div className="workspaceHeroNote">
-          <span>CTO VIEW</span>
-          <strong>Expected → Delivered → Verified</strong>
-          <small>The router is intentionally pushed into the background.</small>
+        <div className="introState">
+          <span>EXECUTION STATE</span>
+          <strong>{running ? "Processing request" : verified ? "Verified outcome" : result ? "Needs review" : "Ready for work"}</strong>
+          <small>{result?.provenance === "SIMULATED_DEMO" ? "Simulation is clearly marked. Live runs use the configured runtime." : "Live runtime"}</small>
         </div>
       </section>
 
-      <section className="workspaceGrid">
-        <aside className="workspaceColumn requestColumn">
-          <div className="workspacePanel requestPanel">
-            <div className="workspacePanelHead">
-              <span>01 / REQUEST</span>
-              <b>WHAT THE USER ASKED</b>
+      <section className="workspaceShellV2">
+        <aside className="requestRailV2">
+          <section className="surfaceV2 requestSurface">
+            <div className="surfaceHeaderV2">
+              <span>REQUEST</span>
+              <b>USER TASK</b>
             </div>
-            <label htmlFor="workspace-task">ENGINEERING TASK</label>
-            <textarea id="workspace-task" value={task} onChange={(e) => setTask(e.target.value)} />
-            <div className="workspaceControls">
+            <textarea value={task} onChange={(e) => setTask(e.target.value)} aria-label="User task" />
+            <div className="requestRunV2">
               <div>
-                <span>CONTROL POLICY</span>
-                <strong>Quality ≥ 70% · max 3 repair loops · $0.05 cap</strong>
+                <span>GUARDRAILS</span>
+                <strong>Quality 70% · 3 loops · $0.05</strong>
               </div>
-              <button className="workspaceRun" onClick={run} disabled={running || !task.trim()}>
-                {running ? "Executing…" : "Execute task →"}
+              <button onClick={run} disabled={running || !task.trim()}>
+                {running ? "Running…" : "Run task"}
               </button>
             </div>
-          </div>
+          </section>
 
-          <div className="workspacePanel expectedPanel">
-            <div className="workspacePanelHead">
-              <span>02 / ACCEPTANCE CONTRACT</span>
-              <b>WHAT “DONE” MEANS</b>
+          <section className="surfaceV2 acceptanceSurface">
+            <div className="surfaceHeaderV2">
+              <span>ACCEPTANCE</span>
+              <b>WHAT COUNTS AS DONE</b>
             </div>
-            <div className="acceptanceList">
-              {acceptanceChecks.map((item, index) => (
-                <div className="acceptanceItem" key={item.label}>
+            <div className="acceptanceV2">
+              {acceptance.map(([name, detail], index) => (
+                <div key={name}>
                   <span>{String(index + 1).padStart(2, "0")}</span>
-                  <div>
-                    <strong>{item.label}</strong>
-                    <p>{item.detail}</p>
-                  </div>
+                  <div><strong>{name}</strong><small>{detail}</small></div>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         </aside>
 
-        <section className="workspaceColumn outcomeColumn">
-          <div className="workspacePanel outcomePanel">
-            <div className="workspacePanelHead">
-              <span>03 / DELIVERED</span>
-              <b>WHAT THE AGENT ACTUALLY RETURNED</b>
-              {result && <small>{provenance}</small>}
+        <section className="mainResultV2">
+          <section className="surfaceV2 resultSurfaceV2">
+            <div className="resultHeaderV2">
+              <div>
+                <span className="resultEyebrowV2">DELIVERABLE</span>
+                <h2>{result?.deliverable?.title ?? "Your result will appear here"}</h2>
+                <p>{result?.deliverable?.summary ?? "Run a task to see the structured outcome, execution path, and verification evidence."}</p>
+              </div>
+              <div className={verified ? "decisionPill verified" : "decisionPill"}>{verified ? "VERIFIED" : result ? "REVIEW" : "READY"}</div>
             </div>
 
-            {!result ? (
-              <div className="emptyOutcome">
-                <div className="emptyGlyph">→</div>
-                <h2>No execution yet</h2>
-                <p>Run the task to populate the claimed output, execution trace and verification evidence.</p>
+            <div className="resultTabsV2" role="tablist">
+              <button className={activeTab === "result" ? "active" : ""} onClick={() => setActiveTab("result")}>Result</button>
+              <button className={activeTab === "activity" ? "active" : ""} onClick={() => setActiveTab("activity")}>Activity</button>
+              <button className={activeTab === "evidence" ? "active" : ""} onClick={() => setActiveTab("evidence")}>Evidence</button>
+            </div>
+
+            {activeTab === "result" && (
+              <div className="resultBodyV2">
+                <div className="artifactSummaryV2">
+                  <span>{result?.deliverable?.type ?? "OUTPUT"}</span>
+                  <strong>{result?.task_type ? result.task_type + " workflow" : "Execution result"}</strong>
+                  <p>{result?.output ?? "No result has been produced yet."}</p>
+                </div>
+
+                <div className="artifactSectionsV2">
+                  {(result?.deliverable?.sections ?? []).map((section) => (
+                    <article key={section.title}>
+                      <span>{section.title}</span>
+                      <p>{section.body}</p>
+                    </article>
+                  ))}
+                  {!result && (
+                    <article className="placeholderSectionV2">
+                      <span>EXPECTED ARTIFACT</span>
+                      <p>The final artifact changes with the task. Coding tasks produce changes and checks; research tasks produce a structured brief; other work can produce the appropriate output type.</p>
+                    </article>
+                  )}
+                </div>
               </div>
-            ) : (
-              <>
-                <div className="outcomeBanner">
-                  <div>
-                    <span>RUN RESULT</span>
-                    <strong>{verified ? "Candidate outcome produced" : "Execution stopped without proof"}</strong>
-                  </div>
-                  <span className={verified ? "outcomeState good" : "outcomeState bad"}>{verified ? "PASS" : "REVIEW"}</span>
-                </div>
-
-                <div className="artifactBlock">
-                  <div className="artifactHead">
-                    <span>AGENT OUTPUT</span>
-                    <small>CLAIM — not sufficient by itself</small>
-                  </div>
-                  <pre>{output}</pre>
-                </div>
-
-                <div className="traceBlock">
-                  <div className="artifactHead">
-                    <span>EXECUTION TRACE</span>
-                    <small>{trace.length} recorded stages</small>
-                  </div>
-                  <div className="workspaceTrace">
-                    {trace.map((item) => (
-                      <div
-                        className={
-                          item.status === "failed"
-                            ? "traceItem failed"
-                            : item.status === "passed" || item.status === "complete"
-                            ? "traceItem passed"
-                            : "traceItem"
-                        }
-                        key={item.step + "-" + item.index}
-                      >
-                        <span>{String(item.index).padStart(2, "0")}</span>
-                        <div>
-                          <strong>{item.label}</strong>
-                          <small>{item.detail ?? "No detail recorded."}</small>
-                        </div>
-                        <b>{item.status.toUpperCase()}</b>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
             )}
-          </div>
+
+            {activeTab === "activity" && (
+              <div className="activityV2">
+                {trace.length === 0 ? (
+                  <div className="emptyStateV2">No execution activity yet.</div>
+                ) : (
+                  trace.map((item) => (
+                    <div className={"activityItemV2 " + (item.status === "failed" ? "failed" : item.status === "passed" ? "passed" : "")} key={item.number + item.step}>
+                      <span>{item.number}</span>
+                      <div><strong>{item.label}</strong><small>{item.detail ?? "No detail recorded."}</small></div>
+                      <b>{item.status.toUpperCase()}</b>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {activeTab === "evidence" && (
+              <div className="evidenceTabV2">
+                {evidence.length === 0 ? (
+                  <div className="emptyStateV2">Evidence appears after execution.</div>
+                ) : (
+                  evidence.map((item, index) => (
+                    <div className="evidenceRowV2" key={item.claim + index}>
+                      <span>{item.status === "verified" ? "✓" : "!"}</span>
+                      <div><strong>{item.claim}</strong><small>{item.evidence}</small></div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </section>
+
+          <section className="surfaceV2 receiptSurfaceV2">
+            <div><span>RUN</span><strong>{result?.run_id ?? "—"}</strong></div>
+            <div><span>LATENCY</span><strong>{result?.latency_ms != null ? (result.latency_ms / 1000).toFixed(2) + "s" : "—"}</strong></div>
+            <div><span>COST</span><strong>{result?.total_cost_usd != null ? "$" + result.total_cost_usd.toFixed(3) : "—"}</strong></div>
+            <div><span>ITERATIONS</span><strong>{result?.iteration != null ? String(result.iteration) : "—"}</strong></div>
+          </section>
         </section>
 
-        <aside className="workspaceColumn proofColumn">
-          <div className={verified ? "workspacePanel proofPanel verified" : "workspacePanel proofPanel"}>
-            <div className="workspacePanelHead">
-              <span>04 / PROOF</span>
-              <b>WHY THE SYSTEM CAN SAY DONE</b>
+        <aside className="verifyRailV2">
+          <section className={"surfaceV2 verifySurfaceV2 " + (verified ? "verified" : "")}>
+            <div className="surfaceHeaderV2">
+              <span>VERIFICATION</span>
+              <b>DECISION</b>
             </div>
-
-            <div className="proofDecision">
-              <span>FINAL DECISION</span>
+            <div className="decisionHeroV2">
+              <small>FINAL STATUS</small>
               <strong>{status}</strong>
-              <small>{result?.decision?.reason ?? "Verification evidence will determine the final decision."}</small>
+              <p>{result?.decision?.reason ?? "Run the task to calculate the final decision."}</p>
             </div>
 
-            <div className="proofFacts">
-              <div><span>QUALITY</span><strong>{result?.verification?.quality != null ? String(Math.round(result.verification.quality * 100)) + "%" : "—"}</strong></div>
-              <div><span>EVIDENCE</span><strong>{String(evidenceCount)}</strong></div>
-              <div><span>ITERATIONS</span><strong>{result?.iteration != null ? String(result.iteration) : "—"}</strong></div>
-              <div><span>COST</span><strong>{result?.total_cost_usd != null ? "$" + result.total_cost_usd.toFixed(3) : "—"}</strong></div>
+            <div className="verifyMetricsV2">
+              <div><span>QUALITY</span><strong>{result?.verification?.quality != null ? Math.round(result.verification.quality * 100) + "%" : "—"}</strong></div>
+              <div><span>EVIDENCE</span><strong>{String(evidence.length)}</strong></div>
+              <div><span>RISK</span><strong>{result?.decision?.risk ?? "—"}</strong></div>
+              <div><span>POLICY</span><strong>{result?.decision?.policy_action ?? "—"}</strong></div>
             </div>
 
-            <div className="proofChecks">
-              <div className="artifactHead">
-                <span>VERIFICATION GATES</span>
-                <small>Independent of the agent's prose</small>
-              </div>
-              {(result?.verification?.checks ?? acceptanceChecks.map((item) => item.label)).map((check, index) => {
-                const isPassed = verified;
-                return (
-                  <div className={isPassed ? "proofCheck passed" : "proofCheck"} key={check + "-" + index}>
-                    <span>{isPassed ? "✓" : "•"}</span>
-                    <strong>{check.replaceAll("_", " ")}</strong>
-                    <small>{isPassed ? "PASSED" : "PENDING"}</small>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="evidenceBlock">
-              <div className="artifactHead">
-                <span>EVIDENCE LEDGER</span>
-                <small>{String(evidenceCount)} claims</small>
-              </div>
-              {(result?.evidence ?? []).map((item, index) => (
-                <div className="workspaceEvidence" key={item.claim + "-" + index}>
-                  <span>{item.status === "verified" ? "✓" : "×"}</span>
-                  <div>
-                    <strong>{item.claim}</strong>
-                    <p>{item.evidence}</p>
-                  </div>
+            <div className="checkListV2">
+              <div className="checkListHeaderV2"><span>CHECKS</span><small>{checks.length} gates</small></div>
+              {(checks.length ? checks : acceptance.map(([name]) => name)).map((check, index) => (
+                <div className={verified ? "checkRowV2 pass" : "checkRowV2"} key={check + index}>
+                  <span>{verified ? "✓" : "•"}</span>
+                  <strong>{check}</strong>
+                  <small>{verified ? "PASS" : "WAIT"}</small>
                 </div>
               ))}
-              {!result?.evidence?.length && <p className="emptyEvidence">Evidence appears after execution.</p>}
             </div>
-          </div>
+
+            <div className="proofNoteV2">
+              <span>DECISION BASIS</span>
+              <strong>{result?.decision?.reason_code ?? "Awaiting verification"}</strong>
+              <small>{result?.provenance === "SIMULATED_DEMO" ? "Simulated result. No external system was changed." : "Runtime-backed result."}</small>
+            </div>
+          </section>
         </aside>
       </section>
 
-      <section className="workspaceReceipt">
-        <div className="receiptTitle">
-          <span>EXECUTION RECEIPT</span>
-          <strong>{result ? (verified ? "Proof-backed completion" : "Incomplete execution") : "Waiting for run"}</strong>
-        </div>
-        <div className="receiptStats">
-          <div><span>RUN ID</span><strong>{result?.run_id ?? "—"}</strong></div>
-          <div><span>LATENCY</span><strong>{result?.latency_ms != null ? String((result.latency_ms / 1000).toFixed(2)) + "s" : "—"}</strong></div>
-          <div><span>DECISION</span><strong>{result?.decision?.action ?? "—"}</strong></div>
-          <div><span>POLICY</span><strong>{result?.decision?.policy_action ?? "—"}</strong></div>
-          <div><span>RISK</span><strong>{result?.decision?.risk ?? "—"}</strong></div>
-        </div>
-      </section>
+      {error && <div className="workspaceErrorV2"><strong>Execution error</strong><span>{error}</span></div>}
 
-      {error && (
-        <div className="workspaceError">
-          <strong>Execution error</strong>
-          <span>{error}</span>
-        </div>
-      )}
-
-      <footer className="workspaceFooter">
+      <footer className="workspaceFooterV2">
         <span>NO PROOF → NO DONE.</span>
-        <span>{demo ? "Demo mode — results are explicitly simulated." : "Live mode — provider/runtime behavior depends on configured infrastructure."}</span>
+        <span>{demo ? "Demo mode — the UI and decision path are real; external execution is simulated." : "Live mode — execution depends on configured runtime infrastructure."}</span>
       </footer>
     </main>
   );
