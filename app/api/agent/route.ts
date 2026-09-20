@@ -6,6 +6,7 @@ import {
   type Message,
   type ProviderName,
 } from "@/lib/providers";
+import { formatRepositoryContext, inspectGithubRepository, type RepositoryContext } from "@/lib/github-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ function taskSystemPrompt(taskType: string): string {
   ].join(" ");
 }
 
-function buildDeliverable(task: string, taskType: string, output: string) {
+function buildDeliverable(task: string, taskType: string, output: string, repositoryContext?: RepositoryContext | null) {
   const titles: Record<string, string> = {
     engineering: "Engineering result",
     configuration: "Configuration plan",
@@ -54,11 +55,16 @@ function buildDeliverable(task: string, taskType: string, output: string) {
     summary: summaries[taskType] ?? summaries.general,
     sections: [
       { title: "Result", body: output.slice(0, 6000) },
-      { title: "Execution boundary", body: "This run used a configured live model provider. No external system change is claimed unless a recorded tool action exists." },
+      {
+        title: repositoryContext ? "Repository inspected" : "Execution boundary",
+        body: repositoryContext
+          ? repositoryContext.url + " was inspected on " + (repositoryContext.defaultBranch ?? "the default branch") + ". Files were read read-only; no remote change was made."
+          : "This run used a configured live model provider. No external system change is claimed unless a recorded tool action exists.",
+      },
       {
         title: "Next verification",
         body: taskType === "engineering"
-          ? "Run repository tests, build, and inspect the resulting diff before marking the task complete."
+          ? "Produce and verify the actual repository change with deterministic checks before marking the task complete."
           : "Validate the highest-risk claims or actions against appropriate system evidence before treating the result as operationally complete.",
       },
     ],
@@ -207,9 +213,26 @@ export async function POST(request: Request) {
       );
     }
 
+    let repositoryContext: RepositoryContext | null = null;
+    try {
+      repositoryContext = await inspectGithubRepository(task);
+    } catch (repositoryError) {
+      return NextResponse.json(
+        {
+          error: repositoryError instanceof Error ? repositoryError.message : "Repository inspection failed.",
+          provenance: "LIVE_GITHUB_CONTEXT_ERROR",
+        },
+        { status: 502 },
+      );
+    }
+
+    const userPrompt = repositoryContext
+      ? task + "\n\n" + formatRepositoryContext(repositoryContext)
+      : task;
+
     const messages: Message[] = [
       { role: "system", content: taskSystemPrompt(taskType) },
-      { role: "user", content: task },
+      { role: "user", content: userPrompt },
     ];
 
     const worker = await runProviderCascade(messages, maxTokens, {
@@ -237,6 +260,13 @@ export async function POST(request: Request) {
         : "The verification stage did not establish this check as passed.",
       status: verification.passed ? "verified" : "review",
     }));
+    if (repositoryContext) {
+      evidence.unshift({
+        claim: "Repository context inspected",
+        evidence: repositoryContext.url + " was read through the GitHub API without modifying the repository.",
+        status: "verified",
+      });
+    }
 
     return NextResponse.json({
       provenance: "LIVE_PROVIDER_RUNTIME",
@@ -249,7 +279,16 @@ export async function POST(request: Request) {
       provider: worker.result.provider,
       model: worker.result.model,
       output: worker.result.output,
-      deliverable: buildDeliverable(task, taskType, worker.result.output),
+      deliverable: buildDeliverable(task, taskType, worker.result.output, repositoryContext),
+      repository: repositoryContext
+        ? {
+            url: repositoryContext.url,
+            defaultBranch: repositoryContext.defaultBranch,
+            inspectedFiles: repositoryContext.selectedFiles.map((file) => file.path),
+            rootFileCount: repositoryContext.rootFiles.length,
+            provenance: repositoryContext.provenance,
+          }
+        : undefined,
       candidates: worker.attempts,
       selected: {
         provider: worker.result.provider,
