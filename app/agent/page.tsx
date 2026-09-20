@@ -155,320 +155,313 @@ export default function AgentControlPlane() {
   const evidence = result?.evidence ?? [];
 
   return (
-    <div className="controlPlane">
-      <header className="controlHeader">
-        <div>
-          <div className="eyebrow">AGENT EVAL ROUTER / CONTROL PLANE</div>
-          <div className="brandLine">
-            <span className="brandPulse" />
-            <span>Autonomous AI work, with proof.</span>
-          </div>
-        </div>
-        <div className="runtimeSwitch">
-          <span className={demo ? "modeActive" : ""}>{demo ? "DEMO" : "LIVE RUNTIME"}</span>
-          <button className="ghostButton" onClick={() => setDemo(!demo)}>
-            {demo ? "Switch to live" : "Use demo"}
-          </button>
+    <div className="agentProduct">
+      <header className="productNav">
+        <a className="productBrand" href="#top">
+          <span className="productMark">A</span>
+          <span>
+            <strong>Agent Eval Router</strong>
+            <small>AI execution control plane</small>
+          </span>
+        </a>
+        <nav className="productLinks" aria-label="Product navigation">
+          <a href="#work">Workloads</a>
+          <a href="#proof">Proof</a>
+          <a href="#architecture">How it works</a>
+          <a href="https://github.com/rohith0707/agent-eval-router" target="_blank" rel="noreferrer">GitHub ↗</a>
+        </nav>
+        <div className="productRuntime">
+          <span className={demo ? "runtimeMode active" : "runtimeMode"}>{demo ? "DEMO" : "LIVE"}</span>
+          <button className="navSwitch" onClick={() => setDemo(!demo)}>{demo ? "Use live" : "Use demo"}</button>
         </div>
       </header>
 
-      <main className="controlContent">
-        <section className="sixSecondHero">
-          <div className="heroStory">
-            <div className="heroEyebrow">AI WORK, WITH A STOP CONDITION</div>
-            <h1>AI can do the work.<br /><em>We make it prove the work.</em></h1>
-            <p className="heroLead">
-              Give an AI a real engineering job. If it fails, the system repairs it.
-              If the proof does not pass, it never gets to say <strong>DONE.</strong>
+      <main className="productMain" id="top">
+        <section className="productHero">
+          <div className="productHeroCopy">
+            <div className="productKicker">AUTONOMOUS AI / EXECUTION CONTROL</div>
+            <h1>Make AI work.<br /><span>Make it earn DONE.</span></h1>
+            <p>
+              Give an agent a real engineering task. The control plane routes the work,
+              enforces limits, recovers from failure, and requires evidence before success.
             </p>
-
-            <div className="heroProofLine">
-              <span>DO THE WORK</span><b>→</b><span>CATCH FAILURE</span><b>→</b><span>REPAIR</span><b>→</b><span>PROVE</span>
+            <div className="heroPills">
+              <span>Policy gates</span>
+              <span>Bounded repair</span>
+              <span>Verification</span>
+              <span>Decision ledger</span>
             </div>
+            <div className="heroNote">
+              <b>No proof → no DONE.</b>
+              <span>Designed for autonomous work that still needs a defensible result.</span>
+            </div>
+          </div>
 
-            <div className="heroActions">
-              <div className="heroButtons">
-                <button className="runButton heroRun" onClick={runLiveRouter} disabled={routerRunning || !task.trim()}>
-                  {routerRunning ? "Router is comparing…" : "Watch the router work →"}
+          <section className="agentConsole" aria-label="Agent task composer">
+            <div className="consoleChrome">
+              <span className="windowDot red" />
+              <span className="windowDot amber" />
+              <span className="windowDot green" />
+              <strong>RUN AN ENGINEERING TASK</strong>
+              <span className="consoleStatus">{routerRunning || running ? "WORKING" : "READY"}</span>
+            </div>
+            <div className="consolePrompt">
+              <span className="consoleLabel">TASK</span>
+              <textarea
+                value={task}
+                onChange={(e) => setTask(e.target.value)}
+                aria-label="Engineering task"
+              />
+            </div>
+            <div className="consoleControls">
+              <div className="limitGroup">
+                <span>LIMITS</span>
+                <button type="button" onClick={() => setMaxCost(0.05)}>$0.05 cap</button>
+                <button type="button" onClick={() => setMaxIterations(3)}>3 repair loops</button>
+                <button type="button">Verification required</button>
+              </div>
+              <div className="consoleActions">
+                <button className="secondaryAction" onClick={runLiveRouter} disabled={routerRunning || !task.trim()}>
+                  {routerRunning ? "Comparing…" : "Compare routes"}
                 </button>
-                <button className="ghostButton heroDemoButton" onClick={run} disabled={running || !task.trim()}>
-                  {running ? "Running…" : "Run full proof"}
+                <button className="primaryAction" onClick={run} disabled={running || !task.trim()}>
+                  {running ? "Running…" : "Run control plane →"}
                 </button>
               </div>
-              <span className="heroSub">One run. One decision. Evidence attached.</span>
             </div>
-          </div>
-
-          <div className="proofDemo">
-            <div className="proofDemoTop">
-              <div>
-                <span className="demoKicker">REAL ENGINEERING TASK</span>
-                <strong>Fix failing CI</strong>
-              </div>
-              <span className="demoLive"><i /> {running ? "WORKING" : "READY"}</span>
+            <div className="consoleHint">
+              {demo
+                ? "Demo mode uses the local proof pipeline. Switch to live to use configured providers."
+                : "Live runtime uses configured providers and returns the execution receipt."}
             </div>
-
-            <div className="demoTask">
-              <span>INPUT</span>
-              <p>{task}</p>
-            </div>
-
-            <div className="demoFlow">
-              <div className="demoStep done"><b>01</b><span>Investigate</span><i>✓</i></div>
-              <div className="demoStep done"><b>02</b><span>Change code</span><i>✓</i></div>
-              <div className="demoStep repair"><b>03</b><span>Test fails</span><i>!</i></div>
-              <div className="demoStep done"><b>04</b><span>Repair</span><i>✓</i></div>
-              <div className="demoStep verified"><b>05</b><span>Prove result</span><i>✓</i></div>
-            </div>
-
-            <div className="demoOutcome">
-              <div>
-                <span>FINAL DECISION</span>
-                <strong>VERIFIED</strong>
-              </div>
-              <div className="demoMetric"><span>TIME</span><b>seconds</b></div>
-              <div className="demoMetric"><span>PROOF</span><b>attached</b></div>
-            </div>
-            <div className="demoTagline">No proof → no DONE.</div>
-          </div>
+          </section>
         </section>
 
-        {(routerRunning || routerCards.length > 0 || selectedRoute) && (
-          <section className="liveRouter">
-            <div className="liveRouterHeader">
-              <div>
-                <div className="sectionEyebrow">LIVE ROUTER</div>
-                <h2>Parallel probe. <span>One decision.</span></h2>
-              </div>
-              <div className={routerRunning ? "routerLiveStatus active" : "routerLiveStatus"}>
-                <i /> {routerRunning ? "RUNNING IN PARALLEL" : selectedRoute ? "ROUTE SELECTED" : "READY"}
-              </div>
+        <section className="signalBar" aria-label="Product capabilities">
+          <div><strong>CONTROL</strong><span>What the agent is allowed to do</span></div>
+          <div><strong>ROUTING</strong><span>Which path is worth taking</span></div>
+          <div><strong>RECOVERY</strong><span>What happens when work fails</span></div>
+          <div><strong>PROOF</strong><span>Why the system is allowed to say DONE</span></div>
+        </section>
+
+        <section className="workSection" id="work">
+          <div className="sectionIntro">
+            <div>
+              <span className="sectionTag">REAL WORK, NOT CHAT</span>
+              <h2>Give it the kind of task you would normally keep an engineer around for.</h2>
             </div>
-            <div className="routerCards">
-              {routerCards.map((card) => (
-                <div className={`routerCard ${card.status} ${selectedRoute?.provider === card.provider ? "winner" : ""}`} key={card.provider}>
-                  <div className="routerCardTop">
-                    <strong>{card.label}</strong>
-                    <span>{card.status === "running" ? "..." : card.status === "failed" ? "FAILED" : selectedRoute?.provider === card.provider ? "SELECTED" : "DONE"}</span>
-                  </div>
-                  <small>{card.model}</small>
-                  <div className="routerBar"><i style={{ width: `${Math.max(8, Math.min(100, (card.score ?? 0) * 100))}%` }} /></div>
-                  <div className="routerStats">
-                    <span>{card.latencyMs ? `${card.latencyMs}ms` : "—"}</span>
-                    <span>{card.costUsd != null ? `${card.costUsd.toFixed(4)}` : "—"}</span>
-                    <span>{card.quality ? `${Math.round(card.quality * 100)}%` : "—"}</span>
-                  </div>
-                  {card.preview && <p>{card.preview}</p>}
-                </div>
-              ))}
-            </div>
-            {parallelProof && (
-              <div className="routeDecision">
-                <span>PARALLEL PROOF</span>
-                <strong>{parallelProof.configuredProviders}/{parallelProof.expectedProviders} live · {parallelProof.maxConcurrent} concurrent</strong>
-                <p>{parallelProof.proof} Wall clock: {parallelProof.wallClockMs}ms.</p>
+            <p>These are examples of the workload shape the control plane is designed to govern.</p>
+          </div>
+
+          <div className="workGrid">
+            <article className="workCard featured">
+              <div className="workTop">
+                <span>ENGINEERING</span>
+                <span>VERIFY + REPAIR</span>
               </div>
-            )}
-            {selectedRoute && (
-              <div className="routeDecision">
-                <span>ROUTER DECISION</span>
-                <strong>{selectedRoute.label} / {selectedRoute.model}</strong>
-                <p>Selected from live results using quality + latency + cost. Score {selectedRoute.score}.</p>
-              </div>
-            )}
-          </section>
-        )}
-
-        <section className="whatThisIs">
-          <div className="sectionEyebrow">CONTROL-PLANE ARCHITECTURE</div>
-          <h2>Every autonomous action passes through <span>a control boundary.</span></h2>
-          <div className="heroProofLine architectureFlow"><span>AGENT</span><b>→</b><span>IDENTITY / PERMISSION</span><b>→</b><span>POLICY + RISK</span><b>→</b><span>ALLOW / REVIEW / BLOCK</span><b>→</b><span>ROUTER + TOOLS</span><b>→</b><span>VERIFY</span><b>→</b><span>PROOF + LEDGER</span><b>→</b><span>EVAL / REPLAY</span></div>
-
-
-          <div className="sectionEyebrow">THE PRODUCT IN ONE SENTENCE</div>
-          <h2>An execution layer that <span>controls AI work from start to proof.</span></h2>
-          <div className="threeAnswers">
-            <div><b>WHAT GOES IN</b><strong>A job</strong><p>“Fix this CI failure.” “Review this change.” “Complete this task.”</p></div>
-            <div><b>WHAT HAPPENS</b><strong>Work + repair</strong><p>Agents execute inside limits and recover from failed verification.</p></div>
-            <div><b>WHAT COMES OUT</b><strong>Verified outcome</strong><p>A decision, measurable run, and evidence showing why it passed or stopped.</p></div>
+              <h3>Fix a failing CI pipeline</h3>
+              <p>Find the root cause, make the smallest change, run the checks again, and stop when the evidence is conclusive.</p>
+              <div className="workMeta"><span>2–3 bounded attempts</span><span>Tests required</span></div>
+            </article>
+            <article className="workCard">
+              <div className="workTop"><span>CHANGE REVIEW</span><span>RISK GATE</span></div>
+              <h3>Review a risky code change</h3>
+              <p>Inspect the requested change, check policy boundaries, surface evidence, and escalate when the proof is incomplete.</p>
+              <div className="workMeta"><span>Evidence ledger</span><span>Human review path</span></div>
+            </article>
+            <article className="workCard">
+              <div className="workTop"><span>MIGRATION</span><span>LONGER RUN</span></div>
+              <h3>Execute a production migration</h3>
+              <p>Route subtasks, enforce execution limits, verify checkpoints, and leave a replayable record of the decision.</p>
+              <div className="workMeta"><span>Bounded cost</span><span>Replayable</span></div>
+            </article>
           </div>
         </section>
 
-        <section className="controlStrip">
-          <div><span>CONTROL</span><strong>Cost + tool + retry limits</strong></div>
-          <div><span>RECOVERY</span><strong>Bounded repair loops</strong></div>
-          <div><span>VERIFICATION</span><strong>Evidence before success</strong></div>
-          <div><span>RECORD</span><strong>Decision ledger</strong></div>
-        </section>
-        {error && (
-          <section className="errorBanner">
-            <strong>RUN FAILED</strong>
-            <span>{error}</span>
-          </section>
-        )}
-
-        {!result && !error && (
-          <section className="preRunGrid">
-            <div className="preRunCard">
-              <div className="sectionEyebrow">WHAT MAKES THIS DIFFERENT</div>
-              <h2>Execution is controlled, not just generated.</h2>
-              <div className="controlPrinciples">
-                <div><b>01</b><span><strong>Bounded work</strong> — limits define what the runtime can do.</span></div>
-                <div><b>02</b><span><strong>Evidence</strong> — decisions carry checks and artifacts.</span></div>
-                <div><b>03</b><span><strong>Repair</strong> — failures trigger bounded recovery, not blind retries.</span></div>
-                <div><b>04</b><span><strong>Verification</strong> — no evidence, no VERIFIED state.</span></div>
-              </div>
+        {!result ? (
+          <section className="proofShowcase" id="proof">
+            <div className="showcaseIntro">
+              <span className="sectionTag">THE INTERESTING PART</span>
+              <h2>AI output is easy to generate. A defensible decision is not.</h2>
+              <p>
+                The runtime is designed around the last question a CTO actually asks:
+                <strong> “What makes you believe this worked?”</strong>
+              </p>
             </div>
 
-            <div className="preRunCard previewCard">
-              <div className="sectionEyebrow">THE RUN YOU ARE ABOUT TO SEE</div>
-              <div className="previewMetric">
-                <span>DECISION</span>
-                <strong>VERIFIED</strong>
-              </div>
-              <div className="previewStats">
-                <div><span>TIME</span><strong>seconds</strong></div>
-                <div><span>COST</span><strong>measured</strong></div>
-                <div><span>PROOF</span><strong>attached</strong></div>
-              </div>
-              <p>Run the demo to see the full execution trail, repair loop and evidence ledger.</p>
-            </div>
-          </section>
-        )}
-
-        {result && (
-          <>
-            <section className={verified ? "outcomeCard verified" : "outcomeCard failed"}>
-              <div className="outcomeHeader">
+            <div className="executionMock">
+              <div className="mockHeader">
                 <div>
-                  <div className="sectionEyebrow">01 / OUTCOME</div>
-                  <div className="outcomeTitleRow">
-                    <span className="outcomeIcon">{verified ? "✓" : "!"}</span>
-                    <h2>{verified ? "VERIFIED" : "NOT VERIFIED"}</h2>
-                  </div>
-                  <p>
-                    {verified
-                      ? "The system completed the work and passed its verification gates."
-                      : "The system stopped without claiming success because verification did not pass."}
-                  </p>
+                  <span>ILLUSTRATIVE EXECUTION</span>
+                  <strong>Fix failing CI</strong>
                 </div>
-                <div className="decisionStamp">
-                  <span>TIME TO VERIFIED DECISION</span>
-                  <strong>{latency != null ? `${(latency / 1000).toFixed(2)}s` : "—"}</strong>
+                <span className="mockState">VERIFIED</span>
+              </div>
+              <div className="mockBody">
+                <div className="mockSteps">
+                  <div className="mockStep"><b>01</b><span>Investigate failure</span><i>✓</i></div>
+                  <div className="mockStep"><b>02</b><span>Apply smallest fix</span><i>✓</i></div>
+                  <div className="mockStep failed"><b>03</b><span>Verification failed</span><i>×</i></div>
+                  <div className="mockStep repair"><b>04</b><span>Bounded repair</span><i>↻</i></div>
+                  <div className="mockStep"><b>05</b><span>Verification passed</span><i>✓</i></div>
+                </div>
+                <div className="mockProof">
+                  <div><span>FINAL DECISION</span><strong>VERIFIED</strong></div>
+                  <div><span>CHECKS</span><b>3 passed</b></div>
+                  <div><span>ATTEMPTS</span><b>2</b></div>
+                  <div><span>RECORD</span><b>attached</b></div>
                 </div>
               </div>
-
-              <div className="outcomeMetrics">
-                <div><span>COST</span><strong>{cost != null ? `\$${cost.toFixed(3)}` : "—"}</strong></div>
-                <div><span>QUALITY</span><strong>{quality != null ? `${Math.round(quality * 100)}%` : "—"}</strong></div>
-                <div><span>ITERATIONS</span><strong>{result.iteration ?? "—"}</strong></div>
-                <div><span>EVIDENCE</span><strong>{result.decision?.evidence_count ?? evidence.length}</strong></div>
+              <div className="mockFooter">No proof → no DONE.</div>
+            </div>
+          </section>
+        ) : (
+          <section className="receiptSection" id="proof">
+            <div className="receiptHeader">
+              <div>
+                <span className="sectionTag">EXECUTION RECEIPT</span>
+                <h2>{verified ? "Verified outcome." : "Not verified."}</h2>
+                <p>{result.task ?? task}</p>
               </div>
-            </section>
+              <span className={verified ? "receiptState good" : "receiptState bad"}>
+                {verified ? "VERIFIED" : "STOPPED"}
+              </span>
+            </div>
 
-            <section className="executionCard">
-              <div className="sectionHeader">
-                <div>
-                  <div className="sectionEyebrow">02 / EXECUTION</div>
-                  <h2>Watch the work happen.</h2>
-                </div>
-                <span className="livePill"><i /> {running ? "RUNNING" : "RUN COMPLETE"}</span>
-              </div>
+            <div className="receiptMetrics">
+              <div><span>TIME TO DECISION</span><strong>{latency != null ? \`\${(latency / 1000).toFixed(2)}s\` : "—"}</strong></div>
+              <div><span>COST</span><strong>{cost != null ? \`$\${cost.toFixed(3)}\` : "—"}</strong></div>
+              <div><span>QUALITY</span><strong>{quality != null ? \`\${Math.round(quality * 100)}%\` : "—"}</strong></div>
+              <div><span>ITERATIONS</span><strong>{result.iteration ?? "—"}</strong></div>
+            </div>
 
-              <div className="timeline">
-                {stageOrder.map((stage, index) => {
-                  const candidates = trajectory.filter((item) =>
-                    stage.aliases.some((alias) => item.step === alias)
-                  );
-                  const displayItem = stage.preferLast ? candidates[candidates.length - 1] : candidates[0];
-                  const stageStatus = displayItem?.status ?? "pending";
-                  return (
-                    <div className={`timelineStage ${stageStatus}`} key={stage.key}>
-                      <div className="timelineNode">{statusIcon(stageStatus)}</div>
-                      <div className="timelineText">
-                        <strong>{stage.label}</strong>
-                        <span>{displayItem?.detail ?? (stage.key === "repair" ? "Runs only when verification fails." : "Waiting for this stage.")}</span>
+            <div className="receiptGrid">
+              <div className="receiptPanel">
+                <div className="panelTitle">EXECUTION</div>
+                <div className="receiptTimeline">
+                  {stageOrder.map((stage) => {
+                    const candidates = trajectory.filter((item) => stage.aliases.some((alias) => item.step === alias));
+                    const item = stage.preferLast ? candidates[candidates.length - 1] : candidates[0];
+                    return (
+                      <div className={\`receiptStage \${item?.status ?? "pending"}\`} key={stage.key}>
+                        <span>{statusIcon(item?.status ?? "pending")}</span>
+                        <div><strong>{stage.label}</strong><small>{item?.detail ?? "Waiting"}</small></div>
                       </div>
-                      {displayItem?.iteration != null && <small>#{displayItem.iteration}</small>}
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="receiptPanel">
+                <div className="panelTitle">WHY THIS CAN BE TRUSTED</div>
+                <div className="proofSummary">
+                  <div className="proofBig">{result.verification?.checks?.length ?? evidence.length}</div>
+                  <div><strong>verification gates</strong><span>must pass before VERIFIED</span></div>
+                </div>
+                <div className="evidenceList">
+                  {evidence.map((item, index) => (
+                    <div className="evidenceItem" key={\`\${item.claim}-\${index}\`}>
+                      <span>{item.status === "verified" ? "✓" : "×"}</span>
+                      <div><strong>{item.claim}</strong><small>{item.evidence}</small></div>
                     </div>
-                  );
-                })}
-              </div>
-
-              <div className="executionLower">
-                <div className="rolePanel">
-                  <div className="miniTitle">WHAT THE SYSTEM ACTUALLY DID</div>
-                  <div className="roleList">
-                    {agents.map((agent, index) => (
-                      <div className="roleRow" key={`${agent.role}-${index}`}>
-                        <span className={`roleStatus ${agent.status}`}>{statusIcon(agent.status)}</span>
-                        <div>
-                          <strong>{agent.role}</strong>
-                          <p>{roleDescriptions[agent.role] ?? agent.detail}</p>
-                        </div>
-                        <span className="roleState">{agent.status}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="proofPanel">
-                  <div className="miniTitle">WHY CAN WE TRUST THIS RESULT?</div>
-                  <div className="proofCount">
-                    <strong>{result.verification?.checks?.length ?? 0}</strong>
-                    <span>verification gates</span>
-                  </div>
-                  <div className="proofList">
-                    {evidence.map((item, index) => (
-                      <div className="proofRow" key={`${item.claim}-${index}`}>
-                        <span className="proofCheck">{item.status === "verified" ? "✓" : "×"}</span>
-                        <div>
-                          <strong>{item.claim}</strong>
-                          <p>{item.evidence}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  ))}
                 </div>
               </div>
-            </section>
+            </div>
 
-            <section className="ledgerCard">
-              <div className="sectionHeader">
-                <div>
-                  <div className="sectionEyebrow">03 / DECISION LEDGER</div>
-                  <h2>Every important decision leaves a record.</h2>
-                </div>
-                <span className="ledgerId">{result.run_id ?? "RUN"}</span>
-              </div>
-
-              <div className="ledgerGrid">
+            <details className="deepDive">
+              <summary>See the decision ledger and runtime detail</summary>
+              <div className="deepDiveGrid">
                 <div><span>ACTION</span><strong>{result.decision?.action ?? "—"}</strong></div>
                 <div><span>POLICY</span><strong>{result.decision?.policy_action ?? "—"}</strong></div>
                 <div><span>RISK</span><strong>{result.decision?.risk ?? "—"}</strong></div>
-                <div><span>REASON CODE</span><strong>{result.decision?.reason_code ?? "—"}</strong></div>
+                <div><span>REASON</span><strong>{result.decision?.reason_code ?? "—"}</strong></div>
               </div>
-              <div className="ledgerReason">
-                <span>DECISION</span>
-                <p>{result.decision?.reason ?? result.output ?? "No decision reason returned."}</p>
-              </div>
-            </section>
-
-            <section className="taskReceipt">
-              <div>
-                <div className="sectionEyebrow">TASK RECEIPT</div>
-                <strong>{result.task ?? task}</strong>
-              </div>
-              <button className="ghostButton" onClick={() => setResult(null)}>Run another job</button>
-            </section>
-
-            <details className="advancedTrace">
-              <summary>Advanced runtime trace</summary>
+              <p>{result.decision?.reason ?? result.output ?? "No decision reason returned."}</p>
               <pre>{result.output}</pre>
             </details>
-          </>
+
+            <div className="receiptFooter">
+              <span>RUN ID {result.run_id ?? "RUN"}</span>
+              <button className="secondaryAction" onClick={() => setResult(null)}>Run another task</button>
+            </div>
+          </section>
+        )}
+
+        {(routerRunning || routerCards.length > 0 || selectedRoute) && (
+          <section className="routerSection">
+            <div className="sectionIntro compact">
+              <div>
+                <span className="sectionTag">UNDER THE HOOD</span>
+                <h2>Routing is a decision, not the product.</h2>
+              </div>
+              <p>When a live comparison is useful, the runtime can probe configured routes in parallel and select from measured results.</p>
+            </div>
+
+            <div className="routerBoard">
+              {routerCards.map((card) => (
+                <div className={\`routerProductCard \${card.status} \${selectedRoute?.provider === card.provider ? "winner" : ""}\`} key={card.provider}>
+                  <div className="routerProductTop">
+                    <strong>{card.label}</strong>
+                    <span>{card.status === "running" ? "WORKING" : card.status === "failed" ? "FAILED" : selectedRoute?.provider === card.provider ? "SELECTED" : "DONE"}</span>
+                  </div>
+                  <small>{card.model}</small>
+                  <div className="routerProductBar"><i style={{ width: \`\${Math.max(8, Math.min(100, (card.score ?? 0) * 100))}%\` }} /></div>
+                  <div className="routerProductStats"><span>{card.latencyMs ? \`\${card.latencyMs}ms\` : "—"}</span><span>{card.costUsd != null ? \`$\${card.costUsd.toFixed(4)}\` : "—"}</span><span>{card.quality ? \`\${Math.round(card.quality * 100)}%\` : "—"}</span></div>
+                </div>
+              ))}
+            </div>
+
+            {parallelProof && (
+              <div className="routerProof">
+                <span>PARALLEL PROOF</span>
+                <strong>{parallelProof.configuredProviders}/{parallelProof.expectedProviders} configured · {parallelProof.maxConcurrent} concurrent</strong>
+                <p>{parallelProof.proof} Wall clock {parallelProof.wallClockMs}ms.</p>
+              </div>
+            )}
+
+            {selectedRoute && (
+              <div className="routerDecision">
+                <span>SELECTED ROUTE</span>
+                <strong>{selectedRoute.label} / {selectedRoute.model}</strong>
+                <p>Chosen using measured quality, latency and cost.</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        <section className="principlesSection">
+          <div className="sectionIntro compact">
+            <div>
+              <span className="sectionTag">WHAT THE SYSTEM CONTROLS</span>
+              <h2>Built around the boundaries that matter when AI can take action.</h2>
+            </div>
+          </div>
+          <div className="principleGrid">
+            <article><span>01</span><h3>Policy before action</h3><p>Identity, permissions, risk and execution limits are evaluated before tools are allowed to run.</p></article>
+            <article><span>02</span><h3>Failure is a state</h3><p>A failed verification produces a bounded repair path instead of an unlimited retry loop.</p></article>
+            <article><span>03</span><h3>Evidence before success</h3><p>The runtime records checks, evidence and a decision reason before it can produce VERIFIED.</p></article>
+            <article><span>04</span><h3>Replayable decisions</h3><p>Important execution choices leave a ledger that can be inspected and evaluated later.</p></article>
+          </div>
+        </section>
+
+        <section className="architectureSection" id="architecture">
+          <details>
+            <summary><span>Architecture</span><strong>Open the control path →</strong></summary>
+            <div className="architecturePath">
+              <span>AGENT</span><i>→</i><span>IDENTITY</span><i>→</i><span>POLICY + RISK</span><i>→</i><span>ALLOW / REVIEW / BLOCK</span><i>→</i><span>ROUTE + TOOLS</span><i>→</i><span>VERIFY</span><i>→</i><span>PROOF + LEDGER</span><i>→</i><span>EVAL / REPLAY</span>
+            </div>
+          </details>
+        </section>
+
+        {error && (
+          <div className="productError">
+            <strong>Run failed</strong>
+            <span>{error}</span>
+          </div>
         )}
       </main>
     </div>
   );
+
 }
