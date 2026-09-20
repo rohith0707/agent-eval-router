@@ -8,26 +8,26 @@ const agentPage = await readFile("app/agent/page.tsx", "utf8");
 // Validate stable product language and data contracts, not exact implementation syntax.
 assert.match(page, /import AgentControlPlane from "\.\/agent\/page"/);
 assert.match(page, /<AgentControlPlane \/>/);
-assert.match(agentPage, /Autonomous AI work, with proof\./);
-assert.match(agentPage, /AI can do the work\.<br \/>.*We make it prove the work/);
-assert.match(agentPage, /AI WORK, WITH A STOP CONDITION/);
+assert.match(agentPage, /AI execution control plane/);
+assert.match(agentPage, /Make AI work\.<br \/>.*Make it earn DONE/);
+assert.match(agentPage, /AUTONOMOUS AI \/ EXECUTION CONTROL/);
 assert.match(agentPage, /agents\?\s*:\s*Agent\[\]/);
 assert.match(agentPage, /const agents = result\?\.agents \?\? \[\];/);
 assert.match(agentPage, /trajectory\?\s*:\s*\{\s*step:\s*string;\s*status:\s*string/);
 assert.match(agentPage, /const trajectory = result\?\.trajectory \?\? \[\];/);
 assert.match(agentPage, /SIMULATED DEMO|DEMO/);
-assert.match(agentPage, /WHAT THE SYSTEM ACTUALLY DID/);
-assert.match(agentPage, /WHY CAN WE TRUST THIS RESULT/);
-assert.match(agentPage, /DECISION LEDGER/);
-assert.match(agentPage, /TIME TO VERIFIED DECISION/);
-assert.match(agentPage, /Watch the router work →/);
+assert.match(agentPage, /REAL WORK, NOT CHAT/);
+assert.match(agentPage, /WHY THIS CAN BE TRUSTED/);
+assert.match(agentPage, /decision ledger and runtime detail/);
+assert.match(agentPage, /TIME TO DECISION/);
+assert.match(agentPage, /Run control plane →/);
 assert.match(agentPage, /verification gates/);
 
 console.log("Control-tower agent product contract: PASS");
 
-assert.match(agentPage, /THE PRODUCT IN ONE SENTENCE/);
+assert.match(agentPage, /THE INTERESTING PART/);
 assert.match(agentPage, /No proof → no DONE\./);
 
-assert.match(agentPage, /LIVE ROUTER/);
-assert.match(agentPage, /RUNNING IN PARALLEL/);
-assert.match(agentPage, /ROUTER DECISION/);
+assert.match(agentPage, /UNDER THE HOOD/);
+assert.match(agentPage, /PARALLEL PROOF/);
+assert.match(agentPage, /SELECTED ROUTE/);
