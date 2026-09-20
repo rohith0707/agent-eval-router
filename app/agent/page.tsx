@@ -3,7 +3,8 @@
 import { useState } from "react";
 
 type Agent = { role: string; status: string; detail?: string };
-type RouterCard = { provider: string; label: string; model: string; status: string; quality?: number; latencyMs?: number; costUsd?: number; score?: number; preview?: string };\ntype Result = {
+type RouterCard = { provider: string; label: string; model: string; status: string; quality?: number; latencyMs?: number; costUsd?: number; score?: number; preview?: string };
+type Result = {
   task?: string;
   provenance?: string;
   run_id?: string;
@@ -67,7 +68,10 @@ export default function AgentControlPlane() {
   const [demo, setDemo] = useState(true);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
-  const [error, setError] = useState<string | null>(null);\n  const [routerCards, setRouterCards] = useState<RouterCard[]>([]);\n  const [selectedRoute, setSelectedRoute] = useState<RouterCard | null>(null);\n  const [routerRunning, setRouterRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [routerCards, setRouterCards] = useState<RouterCard[]>([]);
+  const [selectedRoute, setSelectedRoute] = useState<RouterCard | null>(null);
+  const [routerRunning, setRouterRunning] = useState(false);
 
   async function run() {
     setRunning(true);
@@ -116,7 +120,8 @@ export default function AgentControlPlane() {
         const { value, done } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
+        const lines = buffer.split("
+");
         buffer = lines.pop() ?? "";
         for (const raw of lines) {
           if (!raw.trim()) continue;
