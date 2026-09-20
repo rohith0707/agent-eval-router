@@ -23,28 +23,37 @@ function line(payload: unknown) {
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const task = typeof body.task === "string" && body.task.trim() ? body.task.trim() : "Fix the failing CI import and verify the result.";
+  const task = typeof body.task === "string" && body.task.trim()
+    ? body.task.trim()
+    : "Fix the failing CI import and verify the result.";
   const maxTokens = Math.min(Number(body.max_tokens) || 256, 512);
   const maxCostUsd = Math.max(0.001, Number(body.max_cost_usd) || 0.05);
 
   const configured = configuredProviders();
   const registry = modelRegistry();
   const providers = (Object.keys(configured) as ProviderName[]).filter((provider) => configured[provider]);
+  const expectedProviders = Object.keys(providerLabels).length;
 
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
       const send = (payload: unknown) => controller.enqueue(encoder.encode(line(payload)));
+      const parallelStartedAt = Date.now();
+      let active = 0;
+      let maxConcurrent = 0;
 
       send({
         type: "start",
         task,
         parallel: true,
+        expectedProviders,
+        configuredProviders: providers.length,
         providers: providers.map((provider) => ({
           provider,
           label: providerLabels[provider],
           model: registry[provider]?.[0] ?? "configured model",
           status: "running",
+          startedAt: parallelStartedAt,
         })),
       });
 
@@ -58,7 +67,12 @@ export async function POST(request: Request) {
         providers.map(async (provider) => {
           const model = registry[provider]?.[0];
           if (!model) return null;
+
+          const startedAt = Date.now();
           const started = performance.now();
+          active += 1;
+          maxConcurrent = Math.max(maxConcurrent, active);
+
           try {
             const result = await callProvider(
               provider,
@@ -66,13 +80,22 @@ export async function POST(request: Request) {
               [
                 {
                   role: "system",
-                  content: "Solve the user's engineering task concisely. State the concrete result and any verification you can support. Do not claim tests ran unless they actually ran.",
+                  content:
+                    "Solve the user's engineering task concisely. State the concrete result and any verification you can support. Do not claim tests ran unless they actually ran.",
                 },
                 { role: "user", content: task },
               ],
               maxTokens,
             );
-            const quality = Math.max(0.05, Math.min(1, 0.55 + (result.output.length > 120 ? 0.2 : 0) + (result.output.includes(task.split(" ").slice(0, 3).join(" ")) ? 0.15 : 0)));
+            const quality = Math.max(
+              0.05,
+              Math.min(
+                1,
+                0.55 +
+                  (result.output.length > 120 ? 0.2 : 0) +
+                  (result.output.includes(task.split(" ").slice(0, 3).join(" ")) ? 0.15 : 0),
+              ),
+            );
             const latencyMs = Math.max(result.latencyMs, Math.round(performance.now() - started));
             const score = scoreResult(quality, latencyMs, result.estimatedCostUsd);
             const item = {
@@ -85,6 +108,8 @@ export async function POST(request: Request) {
               costUsd: result.estimatedCostUsd,
               score,
               preview: result.output.slice(0, 280),
+              startedAt,
+              completedAt: Date.now(),
             };
             send({ type: "result", ...item });
             return item;
@@ -98,15 +123,36 @@ export async function POST(request: Request) {
               costUsd: 0,
               score: 0,
               preview: error instanceof Error ? error.message.slice(0, 180) : "Provider failed",
+              startedAt,
+              completedAt: Date.now(),
             };
             send({ type: "result", ...item });
             return item;
+          } finally {
+            active -= 1;
           }
         }),
       );
 
-      const usable = results.filter((item): item is NonNullable<typeof item> => Boolean(item && item.status === "complete" && item.costUsd <= maxCostUsd));
+      const usable = results.filter(
+        (item): item is NonNullable<typeof item> =>
+          Boolean(item && item.status === "complete" && item.costUsd <= maxCostUsd),
+      );
       const winner = usable.sort((a, b) => b.score - a.score)[0];
+      const parallelFinishedAt = Date.now();
+
+      send({
+        type: "parallel_proof",
+        expectedProviders,
+        configuredProviders: providers.length,
+        completedProviders: results.filter(Boolean).length,
+        maxConcurrent,
+        wallClockMs: parallelFinishedAt - parallelStartedAt,
+        proof:
+          maxConcurrent > 1
+            ? "Multiple provider calls overlapped in the same execution window."
+            : "Only one provider call was active; configure more live providers to prove parallel execution.",
+      });
 
       if (winner) {
         send({
@@ -118,7 +164,14 @@ export async function POST(request: Request) {
           reason: "Selected from live parallel results using quality, latency and cost.",
         });
       } else {
-        send({ type: "selected", provider: null, label: "No verified route", model: null, score: 0, reason: "No provider produced an eligible result within the configured cost boundary." });
+        send({
+          type: "selected",
+          provider: null,
+          label: "No verified route",
+          model: null,
+          score: 0,
+          reason: "No provider produced an eligible result within the configured cost boundary.",
+        });
       }
       controller.close();
     },
