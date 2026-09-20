@@ -1,4 +1,4 @@
-import { callProvider, configuredProviders, modelRegistry, ProviderName } from "@/lib/providers";
+import { configuredProviders, modelRegistry, ProviderName, runProviderCascade } from "@/lib/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,9 +75,7 @@ export async function POST(request: Request) {
           maxConcurrent = Math.max(maxConcurrent, active);
 
           try {
-            const result = await callProvider(
-              provider,
-              model,
+            const cascade = await runProviderCascade(
               [
                 {
                   role: "system",
@@ -87,7 +85,22 @@ export async function POST(request: Request) {
                 { role: "user", content: task },
               ],
               maxTokens,
+              {
+                restrictToProviders: [provider],
+                maxModelsPerProvider: 2,
+                attemptTimeoutMs: 4000,
+                totalDeadlineMs: 9000,
+              },
             );
+
+            if (!cascade.result) {
+              const details = cascade.attempts
+                .map((attempt) => `${attempt.model}: ${attempt.outcome}${attempt.statusCode ? ` (HTTP ${attempt.statusCode})` : ""}${attempt.detail ? ` — ${attempt.detail}` : ""}`)
+                .join(" | ");
+              throw new Error(details || `${provider} returned no eligible result`);
+            }
+
+            const result = cascade.result;
             const quality = Math.max(
               0.05,
               Math.min(
@@ -102,7 +115,7 @@ export async function POST(request: Request) {
             const item = {
               provider,
               label: providerLabels[provider],
-              model,
+              model: result.model,
               status: "complete",
               outcome: "success",
               quality: Number(quality.toFixed(3)),
@@ -111,6 +124,7 @@ export async function POST(request: Request) {
               score,
               preview: result.output.slice(0, 280),
               output: result.output,
+              attempts: cascade.attempts,
               startedAt,
               completedAt: Date.now(),
             };
