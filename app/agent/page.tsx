@@ -329,9 +329,9 @@ export default function AgentControlPlane() {
             </div>
 
             <div className="receiptMetrics">
-              <div><span>TIME TO DECISION</span><strong>{latency != null ? \`\${(latency / 1000).toFixed(2)}s\` : "—"}</strong></div>
-              <div><span>COST</span><strong>{cost != null ? \`$\${cost.toFixed(3)}\` : "—"}</strong></div>
-              <div><span>QUALITY</span><strong>{quality != null ? \`\${Math.round(quality * 100)}%\` : "—"}</strong></div>
+              <div><span>TIME TO DECISION</span><strong>{latency != null ? `${(latency / 1000).toFixed(2)}s` : "—"}</strong></div>
+              <div><span>COST</span><strong>{cost != null ? `$${cost.toFixed(3)}` : "—"}</strong></div>
+              <div><span>QUALITY</span><strong>{quality != null ? `${Math.round(quality * 100)}%` : "—"}</strong></div>
               <div><span>ITERATIONS</span><strong>{result.iteration ?? "—"}</strong></div>
             </div>
 
@@ -343,7 +343,7 @@ export default function AgentControlPlane() {
                     const candidates = trajectory.filter((item) => stage.aliases.some((alias) => item.step === alias));
                     const item = stage.preferLast ? candidates[candidates.length - 1] : candidates[0];
                     return (
-                      <div className={\`receiptStage \${item?.status ?? "pending"}\`} key={stage.key}>
+                      <div className={`receiptStage ${item?.status ?? "pending"}`} key={stage.key}>
                         <span>{statusIcon(item?.status ?? "pending")}</span>
                         <div><strong>{stage.label}</strong><small>{item?.detail ?? "Waiting"}</small></div>
                       </div>
@@ -360,7 +360,7 @@ export default function AgentControlPlane() {
                 </div>
                 <div className="evidenceList">
                   {evidence.map((item, index) => (
-                    <div className="evidenceItem" key={\`\${item.claim}-\${index}\`}>
+                    <div className="evidenceItem" key={`${item.claim}-${index}`}>
                       <span>{item.status === "verified" ? "✓" : "×"}</span>
                       <div><strong>{item.claim}</strong><small>{item.evidence}</small></div>
                     </div>
@@ -400,14 +400,14 @@ export default function AgentControlPlane() {
 
             <div className="routerBoard">
               {routerCards.map((card) => (
-                <div className={\`routerProductCard \${card.status} \${selectedRoute?.provider === card.provider ? "winner" : ""}\`} key={card.provider}>
+                <div className={`routerProductCard ${card.status} ${selectedRoute?.provider === card.provider ? "winner" : ""}`} key={card.provider}>
                   <div className="routerProductTop">
                     <strong>{card.label}</strong>
                     <span>{card.status === "running" ? "WORKING" : card.status === "failed" ? "FAILED" : selectedRoute?.provider === card.provider ? "SELECTED" : "DONE"}</span>
                   </div>
                   <small>{card.model}</small>
-                  <div className="routerProductBar"><i style={{ width: \`\${Math.max(8, Math.min(100, (card.score ?? 0) * 100))}%\` }} /></div>
-                  <div className="routerProductStats"><span>{card.latencyMs ? \`\${card.latencyMs}ms\` : "—"}</span><span>{card.costUsd != null ? \`$\${card.costUsd.toFixed(4)}\` : "—"}</span><span>{card.quality ? \`\${Math.round(card.quality * 100)}%\` : "—"}</span></div>
+                  <div className="routerProductBar"><i style={{ width: `${Math.max(8, Math.min(100, (card.score ?? 0) * 100))}%` }} /></div>
+                  <div className="routerProductStats"><span>{card.latencyMs ? `${card.latencyMs}ms` : "—"}</span><span>{card.costUsd != null ? `$${card.costUsd.toFixed(4)}` : "—"}</span><span>{card.quality ? `${Math.round(card.quality * 100)}%` : "—"}</span></div>
                 </div>
               ))}
             </div>
