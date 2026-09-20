@@ -29,8 +29,15 @@ type Result = {
   limits?: Record<string, number>;
 };
 
-const demoTask =
+const defaultTask =
   "Fix the failing CI import in the agent runtime, verify the fix, and stop only when verification passes.";
+
+const taskExamples = [
+  "Fix the failing CI import in the agent runtime, verify the fix, and stop only when verification passes.",
+  "Review this risky code change and identify what must be verified before it ships.",
+  "Change my product from one model provider to another and give me the safest migration plan.",
+  "Investigate a production error, identify likely causes, and define the checks needed before a fix is accepted.",
+];
 
 const roleDescriptions: Record<string, string> = {
   Planner: "Turns the job into bounded work.",
@@ -62,10 +69,9 @@ function statusIcon(status: string) {
 }
 
 export default function AgentControlPlane() {
-  const [task, setTask] = useState(demoTask);
+  const [task, setTask] = useState(defaultTask);
   const [maxCost, setMaxCost] = useState(0.05);
   const [maxIterations, setMaxIterations] = useState(3);
-  const [demo, setDemo] = useState(true);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,13 +85,13 @@ export default function AgentControlPlane() {
     setError(null);
     setResult(null);
     try {
-      const endpoint = demo ? "/api/agent/demo" : "/api/agent";
+      const endpoint = "/api/agent";
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           task,
-          task_type: "coding",
+          task_type: "auto",
           constraints: {
             quality_floor: 0.7,
             max_cost_usd: maxCost,
@@ -156,7 +162,7 @@ export default function AgentControlPlane() {
   const evidence = result?.evidence ?? [];
 
   function openWorkspace() {
-    const url = "/workspace?task=" + encodeURIComponent(task) + (demo ? "&mode=demo" : "&mode=live");
+    const url = "/workspace?task=" + encodeURIComponent(task) + "&mode=live";
     const opened = window.open(url, "_blank", "noopener,noreferrer,width=1500,height=1000");
     if (!opened) window.location.href = url;
   }
@@ -178,8 +184,7 @@ export default function AgentControlPlane() {
           <a href="https://github.com/rohith0707/agent-eval-router" target="_blank" rel="noreferrer">GitHub ↗</a>
         </nav>
         <div className="productRuntime">
-          <span className={demo ? "runtimeMode active" : "runtimeMode"}>{demo ? "DEMO" : "LIVE"}</span>
-          <button className="navSwitch" onClick={() => setDemo(!demo)}>{demo ? "Use live" : "Use demo"}</button>
+          <span className="runtimeMode active">LIVE RUNTIME</span>
         </div>
       </header>
 
@@ -209,7 +214,7 @@ export default function AgentControlPlane() {
               <span className="windowDot red" />
               <span className="windowDot amber" />
               <span className="windowDot green" />
-              <strong>RUN AN ENGINEERING TASK</strong>
+              <strong>START A REAL JOB</strong>
               <span className="consoleStatus">{routerRunning || running ? "WORKING" : "READY"}</span>
             </div>
             <div className="consolePrompt">
@@ -219,6 +224,16 @@ export default function AgentControlPlane() {
                 onChange={(e) => setTask(e.target.value)}
                 aria-label="Engineering task"
               />
+              <div className="taskExamples">
+                <span>TRY A REAL JOB</span>
+                <div>
+                  {taskExamples.map((example, index) => (
+                    <button type="button" key={index} onClick={() => setTask(example)}>
+                      {index === 0 ? "Fix CI" : index === 1 ? "Review change" : index === 2 ? "Migrate model" : "Investigate incident"}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
             <div className="consoleControls">
               <div className="limitGroup">
@@ -229,20 +244,18 @@ export default function AgentControlPlane() {
               </div>
               <div className="consoleActions">
                 <button className="secondaryAction" onClick={runLiveRouter} disabled={routerRunning || !task.trim()}>
-                  {routerRunning ? "Comparing…" : "Compare routes"}
+                  {routerRunning ? "Comparing…" : "See route"}
                 </button>
                 <button className="workspaceAction" onClick={openWorkspace} disabled={!task.trim()}>
-                  Open execution workspace ↗
+                  Open run ↗
                 </button>
                 <button className="primaryAction" onClick={run} disabled={running || !task.trim()}>
-                  {running ? "Running…" : "Run here →"}
+                  {running ? "Executing…" : "Run task →"}
                 </button>
               </div>
             </div>
             <div className="consoleHint">
-              {demo
-                ? "Demo mode uses the local proof pipeline. Switch to live to use configured providers."
-                : "Live runtime uses configured providers and returns the execution receipt."}
+              "Live runtime. The primary path never silently substitutes a simulated result."
             </div>
           </section>
         </section>
