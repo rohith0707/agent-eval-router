@@ -8,7 +8,7 @@ export type RepositoryContext = {
   provenance: "LIVE_GITHUB_CONTEXT";
 };
 
-function parseGithubUrl(value: string): { owner: string; repo: string; url: string } | null {
+export function parseGithubUrl(value: string): { owner: string; repo: string; url: string } | null {
   const match = value.match(/https?:\/\/github\.com\/([^/\s]+)\/([^/\s#?]+)/i);
   if (!match) return null;
   const owner = match[1];
