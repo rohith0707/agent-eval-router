@@ -56,6 +56,13 @@ async def run_agent(task: str, task_type: str = "auto", max_cost_usd: float = 0.
             state["loop_action"] = "COMPLETE"; _append(state, "loop", "complete", "independent verification gate passed")
             history_store.record_decision(state, action="COMPLETE", outcome="verified"); break
 
+        if state.get("failure_class") == "verification_incomplete":
+            state["status"] = "escalated"
+            state["loop_action"] = "ESCALATE"
+            _append(state, "loop", "escalated", "verification evidence is insufficient for completion")
+            history_store.record_decision(state, action="ESCALATE", outcome="verification_incomplete")
+            break
+
         failures = sum(1 for a in state.get("attempts", []) if a.get("status") in {"quality_failed", "failed"})
         if failures <= max_failures and state.get("iteration", 0) < max_iterations:
             state["loop_action"] = "REPAIR"
