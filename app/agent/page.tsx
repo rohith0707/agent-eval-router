@@ -459,7 +459,7 @@ export default function AgentControlPlane() {
             {parallelProof && (
               <div className="routerProof">
                 <span>PARALLEL PROOF</span>
-                <strong>{parallelProof.configuredProviders}/{parallelProof.expectedProviders} configured · {parallelProof.maxConcurrent} concurrent</strong>
+                <strong>{parallelProof.configuredProviders}/{parallelProof.expectedProviders} configured · {parallelProof.maxConcurrent} concurrent · {parallelProof.wallClockMs}ms wall clock</strong>
                 <p>{parallelProof.proof} Wall clock {parallelProof.wallClockMs}ms.</p>
               </div>
             )}
@@ -468,7 +468,7 @@ export default function AgentControlPlane() {
               <div className="routerDecision">
                 <span>SELECTED ROUTE</span>
                 <strong>{selectedRoute.label} / {selectedRoute.model}</strong>
-                <p>Chosen using measured quality, latency and cost.</p>
+                <p>Chosen using measured quality first, then latency/cost fit under the active execution budget.</p>
               </div>
             )}
 

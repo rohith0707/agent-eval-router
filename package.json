@@ -24,6 +24,8 @@
     "validate:production-contract": "node scripts/validate-production-contract.mjs",
     "db:migrate": "RUN_DB_MIGRATIONS=1 node scripts/vercel-build.mjs",
     "test:production-benchmark": "node scripts/test-production-benchmark-contract.mjs",
+    "run:live-benchmark": "cd backend && python scripts/run_live_benchmark.py --limit 50",
+    "run:engineering-proof": "node scripts/run-engineering-proof.mjs",
     "test:router-parallel-contract": "node scripts/test-router-parallel-contract.mjs",
     "test:verification-contract": "node scripts/test-verification-contract.mjs"
   },

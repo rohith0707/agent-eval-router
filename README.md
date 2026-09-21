@@ -122,3 +122,14 @@ This is deliberately not a generic agent swarm framework, RAG platform, enterpri
 ---
 
 *Designed and engineered by Rohith Balsa for high-reliability autonomous AI systems.*
+
+
+## Hiring proof
+
+The project includes a reproducible live benchmark runner and an engineering proof harness.
+
+- Live benchmark: `npm run run:live-benchmark`
+- Engineering proof: `npm run run:engineering-proof`
+- Hiring evidence and interview language: [docs/hiring-proof.md](docs/hiring-proof.md)
+
+Published numbers must come from `MEASURED_LIVE_AGENT_RUN` or `MEASURED_ENGINEERING_PROOF_RUN`; illustrative UI values are not performance claims.
