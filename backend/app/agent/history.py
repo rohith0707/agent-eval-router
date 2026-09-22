@@ -45,9 +45,13 @@ class ExecutionHistoryStore:
                     outcome TEXT,
                     verification TEXT,
                     alternatives TEXT,
+                    authorization TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            columns = {row[1] for row in conn.execute('PRAGMA table_info(decision_ledger)').fetchall()}
+            if 'authorization' not in columns:
+                conn.execute('ALTER TABLE decision_ledger ADD COLUMN authorization TEXT')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_ledger_run_id ON decision_ledger (run_id)')
             conn.commit()
 
@@ -61,8 +65,8 @@ class ExecutionHistoryStore:
                 INSERT OR REPLACE INTO decision_ledger
                 (decision_id, run_id, iteration, action, task, task_type, provider, model,
                  policy_version, risk, reason_code, reason, evidence_count,
-                 estimated_cost_usd, actual_cost_usd, latency_ms, outcome, verification, alternatives)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 estimated_cost_usd, actual_cost_usd, latency_ms, outcome, verification, alternatives, authorization)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 decision_id, state.get("run_id", decision_id), state.get("iteration", 0),
                 action or state.get("decision_action") or decision.get("action"),

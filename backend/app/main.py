@@ -80,7 +80,7 @@ async def run_autonomous_agent(request: AgentRequest) -> dict:
     state = await run_agent(task=request.task, task_type=request.task_type,
                             max_cost_usd=request.max_cost_usd, max_tokens=request.max_tokens,
                             max_iterations=request.max_iterations, max_wall_time_ms=request.max_wall_time_ms,
-                            max_failures=request.max_failures)
+                            max_failures=request.max_failures, authorization=request.authorization.model_dump())
     role_map = {"plan": "Investigator", "route": "Orchestrator", "tool": "Tool Executor", "execute": "Implementer", "verify": "Verifier", "loop": "Repair Controller", "policy": "Policy Gate"}
     agents = [{"role": role_map.get(step.get("step"), step.get("step", "worker").title()),
                "status": step.get("status", "unknown"), "detail": step.get("detail", "")}
@@ -94,6 +94,7 @@ async def run_autonomous_agent(request: AgentRequest) -> dict:
         "decision_id": state.get("decision_id"), "decision_action": state.get("decision_action"),
         "loop_action": state.get("loop_action"), "iteration": state.get("iteration", 0),
         "policy_version": state.get("policy_version"), "decision": state.get("decision"),
+        "authorization": state.get("authorization", {}),
         "verification": state.get("verification", {}), "evidence_count": state.get("evidence_count", 0),
         "failure_class": state.get("failure_class"), "tool_calls": state.get("tool_calls", []),
         "trajectory": state.get("trajectory", []), "limits": {

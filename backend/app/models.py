@@ -114,11 +114,22 @@ class AgentState(BaseModel):
     max_iterations: int = Field(default=3, ge=1, le=10)
     max_wall_time_ms: int = Field(default=120_000, gt=0)
     max_failures: int = Field(default=2, ge=0, le=10)
+    authorization: AgentAuthorization
     total_cost_usd: float = 0.0
     iteration: int = 0
     loop_action: str | None = None
     verification: dict = Field(default_factory=dict)
     ledger: list[dict] = Field(default_factory=list)
+
+
+class AgentAuthorization(BaseModel):
+    actor_id: str = Field(min_length=1)
+    principal_id: str = Field(min_length=1)
+    expires_at: str = Field(min_length=1)
+    tool: str | None = None
+    action: str | None = None
+    resource: str = ""
+    scope: str | None = None
 
 
 class AgentRequest(BaseModel):

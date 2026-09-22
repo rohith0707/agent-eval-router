@@ -21,3 +21,12 @@ The test suite should cover prompt injection, malicious retrieved instructions, 
 ## Production path
 
 Add secret isolation, outbound allowlists, per-tool credentials, tenant isolation, audit retention policy, encryption at rest/in transit, and security-event alerting before exposing privileged tools to real users.
+
+
+## Agent action authorization
+
+The live agent path requires an explicit authorization context before execution: actor_id -> principal_id -> actual tool -> actual action -> parameters/resource -> policy -> expiry.
+
+Entitlements are server-side (AGENT_AUTHORIZATION_POLICY_JSON) and are never accepted from the agent request. The enforcement point derives the actual tool (bounded_http or model.generate) from the runtime plan, checks the delegated principal, parameter limits, resource scope and a maximum 15-minute TTL, then fails closed with BLOCK on denial.
+
+Every authorization result is persisted in the Decision Ledger, including actor, principal, tool/action, policy version, expiry, TTL, parameters and the denial reason. This is an application-level policy enforcement point; production deployments still need authenticated identity/delegation evidence, signed credentials, revocation, and a trusted identity provider.
