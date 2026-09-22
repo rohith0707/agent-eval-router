@@ -8,6 +8,7 @@ from ..provider_registry import build_registry
 from ..router import DEFAULT_CANDIDATES, select_with_constraints
 from ..evaluation.quality import score_output
 from .decision import decide
+from .authorization import authorize
 from .history import history_store
 from .tools import ToolExecutionError, execute_http_tool
 from .verification import verify_candidate
@@ -79,12 +80,63 @@ async def policy_node(state: dict) -> dict:
                       tool_required=bool(state.get("plan", {}).get("requires_tool")),
                       estimated_cost_usd=estimated, max_cost_usd=state.get("max_cost_usd", 0.01),
                       task_type=state.get("task_type", "auto"))
+    auth = state.get("authorization") or {}
+    actual_tool = "bounded_http" if state.get("plan", {}).get("requires_tool") else "model.generate"
+    actual_action = "execute" if actual_tool == "bounded_http" else "generate"
+    auth_decision = authorize(
+        actor_id=auth.get("actor_id", ""),
+        principal_id=auth.get("principal_id", ""),
+        tool=actual_tool,
+        tool_action=actual_action,
+        resource=auth.get("resource", ""),
+        parameters={"task": state.get("task", "")},
+        expires_at=auth.get("expires_at", ""),
+        required_scope=auth.get("scope"),
+    )
+    authorization = {
+        "action": auth_decision.action, "allowed": auth_decision.allowed,
+        "reason_code": auth_decision.reason_code, "reason": auth_decision.reason,
+        "policy_id": auth_decision.policy_id, "policy_version": auth_decision.policy_version,
+        "actor_id": auth_decision.actor_id, "principal_id": auth_decision.principal_id,
+        "tool": auth_decision.tool, "tool_action": auth_decision.tool_action,
+        "resource": auth_decision.resource, "issued_at": auth_decision.issued_at,
+        "expires_at": auth_decision.expires_at, "ttl_seconds": auth_decision.ttl_seconds,
+        "parameters": auth_decision.parameters,
+    }
+    state["authorization"] = authorization
+    requested_tool = auth.get("tool")
+    requested_action = auth.get("action")
+    if requested_tool and (requested_tool != actual_tool or (requested_action and requested_action != actual_action)):
+        state["authorization"] = {**authorization, "action": "BLOCK", "allowed": False,
+                                  "reason_code": "AUTHORIZATION_SCOPE_MISMATCH",
+                                  "reason": "Requested authorization scope does not match the actual runtime action.",
+                                  "tool": requested_tool, "tool_action": requested_action or actual_action}
+        auth_decision = authorize(
+            actor_id=auth.get("actor_id", ""), principal_id=auth.get("principal_id", ""),
+            tool="__mismatch__", tool_action="__mismatch__",
+            resource=auth.get("resource", ""), parameters={"task": state.get("task", "")},
+            expires_at=auth.get("expires_at", ""),
+        )
+    if not auth_decision.allowed or state["authorization"]["allowed"] is False:
+        state["decision"] = {**(state.get("decision") or {}), "policy_action": "BLOCK",
+                             "allowed": False, "reason_code": state["authorization"]["reason_code"],
+                             "reason": state["authorization"]["reason"], "risk": "high",
+                             "authorization": state["authorization"]}
+        state["policy_version"] = state["authorization"]["policy_version"]
+        state["decision_action"] = "BLOCK"
+        history_store.record_decision(state, action="BLOCK", outcome="authorization_denied")
+        _append(state, "authorization", "blocked", f"{state['authorization']['reason_code']}: {state['authorization']['reason']}")
+        state["status"] = "blocked"
+        state["failure_class"] = "authorization_denied"
+        return state
+
     state["decision"] = {**(state.get("decision") or {}), "policy_action": decision.action, "allowed": decision.allowed,
-                          "reason_code": decision.reason_code, "reason": decision.reason, "risk": decision.risk}
+                          "reason_code": decision.reason_code, "reason": decision.reason, "risk": decision.risk,
+                          "authorization": state["authorization"]}
     state["policy_version"] = decision.policy_version
     state["decision_action"] = decision.action
     history_store.record_decision(state)
-    _append(state, "policy", "done" if decision.allowed else "blocked", f"{decision.action} {decision.reason_code}: {decision.reason}")
+    _append(state, "authorization", "allowed", f"{actual_tool}/{actual_action} for {auth_decision.principal_id}; ttl={auth_decision.ttl_seconds}s")
     if not decision.allowed:
         state["status"] = "blocked" if decision.action == "BLOCK" else "escalated"
         state["failure_class"] = "policy_blocked"
