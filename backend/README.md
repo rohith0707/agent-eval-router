@@ -30,3 +30,10 @@ Example:
 ```
 
 The current candidates are deterministic v0.1 fixtures. Real provider adapters will implement the same interface before live benchmark claims are published.
+
+
+## Live agent authorization
+
+POST /v1/agent/run requires an authorization object with actor_id, principal_id, expires_at, and optionally the expected tool/action/resource/scope. The runtime derives the actual tool/action and evaluates them against server-side policy before execution. Unauthorized tools, parameter escalation, expired authorizations and excessive TTLs are blocked and recorded in the Decision Ledger.
+
+Example authorization: { actor_id: "agent:researcher", principal_id: "user:123", expires_at: "2026-09-22T05:30:00Z", tool: "bounded_http", action: "execute" }
