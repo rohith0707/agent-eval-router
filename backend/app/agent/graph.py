@@ -26,12 +26,12 @@ def _should_stop(state: dict, started: float) -> tuple[bool, str]:
 
 async def run_agent(task: str, task_type: str = "auto", max_cost_usd: float = 0.01, max_tokens: int = 512,
                     max_iterations: int = 3, max_wall_time_ms: int = 120_000, max_failures: int = 2,
-                    quality_threshold: float = 0.7) -> AgentState:
+                    quality_threshold: float = 0.7, authorization: dict | None = None) -> AgentState:
     run_id = __import__("uuid").uuid4().hex
     state: AgentState = AgentState(task=task, task_type=task_type, status="running")
     state.update({"run_id": run_id, "max_cost_usd": max_cost_usd, "max_tokens": max_tokens, "max_iterations": max_iterations,
                   "max_wall_time_ms": max_wall_time_ms, "max_failures": max_failures, "quality_threshold": quality_threshold,
-                  "total_cost_usd": 0.0, "iteration": 0, "attempts": [], "tool_calls": [], "trajectory": []})
+                  "total_cost_usd": 0.0, "iteration": 0, "attempts": [], "tool_calls": [], "trajectory": [], "authorization": authorization or {}})
     started = monotonic()
     await plan_node(state)
 
